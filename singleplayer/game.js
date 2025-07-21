@@ -13,14 +13,14 @@ const BOT_SPEED = 80;
 const BOMB_TIMER = 3;
 const EXPLOSION_DURATION = 1;
 
-// Load all sprites with full paths
-loadSprite('wall-steel', 'https://i.imgur.com/EkleLlt.png'); 
-loadSprite('brick-red', 'https://i.imgur.com/C46n8aY.png');
-loadSprite('door', 'https://i.imgur.com/Ou9w4gH.png');
-loadSprite('kaboom', 'https://i.imgur.com/o9WizfI.png');
-loadSprite('bg', 'https://i.imgur.com/qIXIczt.png');
-loadSprite('wall-gold', 'https://i.imgur.com/VtTXsgH.png');
-loadSprite('brick-wood', 'https://i.imgur.com/U751RRV.png');
+// Load all sprites from local sprites folder
+loadSprite('wall-steel', '../sprites/wall-steel.png'); 
+loadSprite('brick-red', '../sprites/brick-red.png');
+loadSprite('door', '../sprites/door.png');
+loadSprite('kaboom', '../sprites/kaboom.png');
+loadSprite('bg', '../sprites/bg.png');
+loadSprite('wall-gold', '../sprites/wall-gold.png');
+loadSprite('brick-wood', '../sprites/brick-wood.png');
 
 // Load original Bomberman sprite
 loadSprite('bomberman', '../images/bombermon.png', {
@@ -55,22 +55,22 @@ loadSprite('bot1', '../images/bombermon.png', {
   }
 });
 
-loadSprite('bomb', 'https://i.imgur.com/etY46bP.png', {
+loadSprite('bomb', '../sprites/bomb.png', {
   sliceX: 3,
   anims: {
     tick: { from: 0, to: 2 },
   }
 });
 
-loadSprite('explosion', 'https://i.imgur.com/baBxoqs.png', { 
+loadSprite('explosion', '../sprites/explosion.png', { 
   sliceX: 5,
   sliceY: 5,
 });
 
 // Power-ups
-loadSprite('powerup-bomb', 'https://i.imgur.com/C46n8aY.png');
-loadSprite('powerup-fire', 'https://i.imgur.com/U751RRV.png');
-loadSprite('powerup-speed', 'https://i.imgur.com/VtTXsgH.png');
+loadSprite('powerup-bomb', '../sprites/powerup-bomb.png');
+loadSprite('powerup-fire', '../sprites/powerup-fire.png');
+loadSprite('powerup-speed', '../sprites/powerup-speed.png');
 
 scene('game', () => {
   layers(['bg', 'obj', 'ui'], 'obj');
