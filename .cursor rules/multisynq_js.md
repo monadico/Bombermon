@@ -2602,7 +2602,7 @@ The content has been processed where empty lines have been removed, content has 
 	}
 	Multisynq.App.makeWidgetDock(); // show QR code
 	Multisynq.Session.join({
-		apiKey: '234567_Paste_Your_Own_API_Key_Here_7654321', // get your own from multisynq.io/coder
+		apiKey: '234567_Paste_Your_Own_t_Key_Here_7654321', // get your own from multisynq.io/coder
 		appId: 'io.multisynq.multiblaster-tutorial',
 		model: Game,
 		view: Display,

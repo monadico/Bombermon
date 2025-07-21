@@ -10,599 +10,790 @@
         padding: 20px;
         font-family: Arial, sans-serif;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
         color: white;
+        min-height: 100vh;
       }
       
-      .menu-container {
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
         text-align: center;
-        background: rgba(255, 255, 255, 0.1);
-        padding: 40px;
-        border-radius: 15px;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
       }
       
       h1 {
-        font-size: 3em;
+        font-size: 48px;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+      }
+      
+      .subtitle {
+        font-size: 18px;
         margin-bottom: 30px;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        opacity: 0.9;
       }
       
-      .menu-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-        margin-top: 30px;
-      }
-      
-      .menu-btn {
-        padding: 15px 30px;
-        border: none;
-        border-radius: 10px;
-        font-size: 1.2em;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        background: linear-gradient(45deg, #4CAF50, #45a049);
-        color: white;
-        text-decoration: none;
-        display: inline-block;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-      }
-      
-      .menu-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-      }
-      
-      .multiplayer-btn {
-        background: linear-gradient(45deg, #2196F3, #1976D2);
-      }
-      
-      .singleplayer-btn {
-        background: linear-gradient(45deg, #FF9800, #F57C00);
-      }
-      
-      .status-indicator {
-        display: inline-block;
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        margin-right: 8px;
-        animation: pulse 2s infinite;
-      }
-      
-      .connecting { background: #FF9800; }
-      .connected { background: #4CAF50; }
-      .disconnected { background: #f44336; }
-      
-      @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.5; }
-        100% { opacity: 1; }
-      }
-      
-      .session-info {
+      .lobby-container {
         background: rgba(255, 255, 255, 0.1);
-        padding: 20px;
-        border-radius: 10px;
+        padding: 30px;
+        border-radius: 15px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         margin: 20px 0;
-        text-align: left;
-      }
-      
-      .player-list {
-        background: rgba(0, 0, 0, 0.2);
-        padding: 15px;
-        border-radius: 8px;
-        margin-top: 15px;
-      }
-      
-      .player-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 8px 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-      
-      .player-item:last-child {
-        border-bottom: none;
       }
       
       .input-group {
-        margin: 15px 0;
+        margin: 20px 0;
         text-align: left;
       }
       
       .input-group label {
         display: block;
-        margin-bottom: 5px;
+        margin-bottom: 8px;
         font-weight: bold;
+        font-size: 16px;
       }
       
       .input-group input {
         width: 100%;
-        padding: 10px;
+        padding: 12px;
         border: none;
-        border-radius: 5px;
-        font-size: 1em;
+        border-radius: 8px;
+        font-size: 16px;
         background: rgba(255, 255, 255, 0.9);
         color: #333;
+        box-sizing: border-box;
+      }
+      
+      .tabs {
+        display: flex;
+        margin: 20px 0 10px 0;
+        border-radius: 8px;
+        overflow: hidden;
+        background: rgba(0, 0, 0, 0.3);
+      }
+      
+      .tab-btn {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 14px;
+        font-weight: bold;
+      }
+      
+      .tab-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      
+      .tab-btn.active {
+        background: #FF6B35;
+        transform: scale(1.05);
+      }
+      
+      .tab-panel {
+        animation: fadeIn 0.3s ease;
+      }
+      
+      .tab-panel.hidden {
+        display: none;
+      }
+      
+      .menu-btn {
+        background: #FF6B35;
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        margin: 10px;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-block;
+      }
+      
+      .menu-btn:hover {
+        background: #E55A2B;
+        transform: translateY(-2px);
+      }
+      
+      .menu-btn:disabled {
+        background: #666;
+        cursor: not-allowed;
+        transform: none;
+      }
+      
+      .room-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+      }
+      
+      .room-code {
+        font-family: monospace;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 5px 10px;
+        border-radius: 8px;
+        font-size: 24px;
+        font-weight: bold;
+        color: #FFD700;
+      }
+      
+      .room-stats {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+      }
+      
+      .player-count-badge {
+        background: #4CAF50;
+        color: white;
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 14px;
+      }
+      
+      .players-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+      }
+      
+      .player-card {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 10px;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        text-align: center;
+      }
+      
+      .player-card.host {
+        border-color: #FFD700;
+        background: rgba(255, 215, 0, 0.1);
+      }
+      
+      .player-card.self {
+        border-color: #4CAF50;
+        background: rgba(76, 175, 80, 0.1);
+      }
+      
+      .player-name {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: white;
+      }
+      
+      .player-badges {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      
+      .badge {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+      }
+      
+      .badge.host {
+        background: #FFD700;
+        color: #000;
+      }
+      
+      .badge.you {
+        background: #4CAF50;
+        color: white;
       }
       
       .hidden {
         display: none;
       }
+      
+      .status {
+        margin: 10px 0;
+        padding: 10px;
+        border-radius: 8px;
+        font-weight: bold;
+      }
+      
+      .status.connecting {
+        background: rgba(255, 193, 7, 0.2);
+        color: #FFC107;
+      }
+      
+      .status.connected {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4CAF50;
+      }
+      
+      .status.error {
+        background: rgba(244, 67, 54, 0.2);
+        color: #F44336;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
     </style>
   </head>
   <body>
-    <div class="menu-container">
-      <h1>💣 Bomberman Lobby</h1>
+    <div class="container">
+      <h1>🎮 Bomberman</h1>
+      <p class="subtitle">Multiplayer Lobby - Powered by MultiSynq</p>
       
-      <!-- Connection Status -->
-      <div id="status">
-        <span class="status-indicator connecting"></span>
-        <span id="statusText">Connecting to MultiSynq...</span>
+      <div id="status" class="status connecting">
+        Ready to connect
       </div>
-      
-      <!-- Session Setup (shown initially) -->
-      <div id="sessionSetup">
+
+      <!-- Initial Setup -->
+      <div id="setup" class="lobby-container">
         <div class="input-group">
           <label for="playerName">Your Name:</label>
           <input type="text" id="playerName" placeholder="Enter your name" maxlength="15">
         </div>
         
-        <div class="input-group">
-          <label for="sessionName">Session Name:</label>
-          <input type="text" id="sessionName" placeholder="bombermon dev" maxlength="20">
+        <div class="tabs">
+          <button id="createTab" class="tab-btn active">🎯 Create Room</button>
+          <button id="joinTab" class="tab-btn">🚪 Join Room</button>
         </div>
         
-        <div class="menu-buttons">
-          <button class="menu-btn multiplayer-btn" id="createBtn">🎮 Create Session</button>
-          <button class="menu-btn multiplayer-btn" id="joinBtn">🔗 Join Session</button>
-          <a href="singleplayer/singleplayer.html" class="menu-btn singleplayer-btn">👤 Single Player</a>
+        <div id="createPanel" class="tab-panel">
+          <div class="input-group">
+            <label for="sessionName">Room Name (Optional):</label>
+            <input type="text" id="sessionName" placeholder="My Awesome Room" maxlength="20">
+          </div>
+          <button class="menu-btn" id="createBtn">🎮 Create Room</button>
+        </div>
+        
+        <div id="joinPanel" class="tab-panel hidden">
+          <div class="input-group">
+            <label for="roomCode">Room Code:</label>
+            <input type="text" id="roomCode" placeholder="Enter 6-digit code" maxlength="6" style="text-transform: uppercase; font-family: monospace; font-size: 18px; text-align: center;">
+          </div>
+          <button class="menu-btn" id="joinBtn">🔗 Join Room</button>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
+          <a href="singleplayer/singleplayer.html" class="menu-btn" style="background: rgba(255,255,255,0.2);">👤 Single Player</a>
         </div>
       </div>
-      
-      <!-- Session Info (shown when connected) -->
-      <div id="sessionInfo" class="session-info hidden">
-        <h3>🎯 Session: <span id="currentSession"></span></h3>
-        <p><strong>Session URL:</strong> <span id="sessionUrl"></span></p>
-        <button class="menu-btn" id="copyUrlBtn">📋 Copy Invite Link</button>
+
+      <!-- Lobby Display -->
+      <div id="lobby" class="lobby-container hidden">
+        <div class="room-header">
+          <h2>🎯 Room: <span id="roomCodeDisplay" class="room-code"></span></h2>
+          <div class="room-stats">
+            <span class="player-count-badge">👥 <span id="playerCount">0</span>/4</span>
+          </div>
+        </div>
         
-        <div class="player-list">
-          <h4>👥 Players (<span id="playerCount">0</span>/4):</h4>
-          <div id="playersList">
+        <div class="input-group">
+          <label>🔗 Invite Link:</label>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="inviteUrl" readonly style="flex: 1; background: rgba(255,255,255,0.1); color: white;">
+            <button class="menu-btn" id="copyBtn" style="padding: 12px 20px;">📋 Copy</button>
+          </div>
+        </div>
+        
+        <div style="margin: 20px 0;">
+          <h3>👥 Players in Room:</h3>
+          <div id="playersGrid" class="players-grid">
             <!-- Players will be added here -->
           </div>
         </div>
         
-        <div class="menu-buttons">
-          <button class="menu-btn multiplayer-btn" id="startGameBtn" disabled>🚀 Start Game</button>
-          <button class="menu-btn" id="leaveBtn">🚪 Leave Session</button>
+        <div style="margin-top: 30px;">
+          <button class="menu-btn" id="startBtn" disabled>🚀 Start Game (Need 2+ players)</button>
+          <button class="menu-btn" id="leaveBtn" style="background: rgba(255,255,255,0.2);">🚪 Leave Room</button>
         </div>
       </div>
     </div>
 
     <!-- MultiSynq CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@multisynq/client@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@multisynq/client@latest/bundled/multisynq-client.min.js"></script>
     
     <script>
       // Configuration
       const CONFIG = {
         appId: 'io.multisynq.ravel.bombermon',
         apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
-        defaultSessionName: 'bombermon dev',
       };
-      
-      // Lobby Model for real-time state synchronization
+
+      // Bomberman Lobby Model - following official MultiSynq pattern
       class LobbyModel extends Multisynq.Model {
         init() {
-          console.log('🏠 Initializing Lobby Model');
+          console.log('🏠 Lobby Model initialized');
           
-          // Shared lobby state
-          this.lobbyState = {
-            sessionName: '',
-            players: {},
-            maxPlayers: 4,
-            isGameStarted: false,
-            hostId: null,
-          };
+          // Initialize shared state
+          this.players = new Map();
+          this.hostId = null;
+          this.roomCode = null;
+          this.maxPlayers = 4;
           
-          // Subscribe to lobby events
-          this.subscribe('*', 'PLAYER_JOIN_LOBBY', this.handlePlayerJoin.bind(this));
-          this.subscribe('*', 'PLAYER_LEAVE_LOBBY', this.handlePlayerLeave.bind(this));
-          this.subscribe('*', 'PLAYER_UPDATE_NAME', this.handlePlayerUpdateName.bind(this));
-          this.subscribe('*', 'START_GAME', this.handleStartGame.bind(this));
+          // Subscribe to system events (as per MultiSynq docs)
+          this.subscribe(this.sessionId, "view-join", this.viewJoined);
+          this.subscribe(this.sessionId, "view-exit", this.viewExited);
           
-          console.log('✅ Lobby Model initialized');
+          // Subscribe to custom events
+          this.subscribe("*", "updateName", this.updatePlayerName);
+          this.subscribe("*", "startGame", this.startGame);
+          this.subscribe("*", "requestLobbyState", this.sendCurrentState);
+          
+          console.log('✅ Lobby Model ready');
         }
         
-        // Handle player joining the lobby
-        handlePlayerJoin(senderId, data) {
-          console.log(`👋 Player ${senderId} joining lobby`);
+        viewJoined(viewInfo) {
+          console.log('👤 View joined:', viewInfo);
           
-          const { playerName } = data;
+          const viewId = viewInfo.viewId;
+          const viewData = viewInfo.viewData || {};
           
           // Set host if first player
-          if (!this.lobbyState.hostId) {
-            this.lobbyState.hostId = senderId;
-            console.log(`👑 ${senderId} is now the host`);
+          if (!this.hostId) {
+            this.hostId = viewId;
+            console.log(`👑 ${viewId} is now the host`);
           }
           
-          // Add player to lobby
-          this.lobbyState.players[senderId] = {
-            id: senderId,
-            name: playerName || `Player_${senderId.slice(-4)}`,
-            isHost: senderId === this.lobbyState.hostId,
-            joinedAt: Date.now(),
-            isReady: false,
+          // Add player to shared state
+          this.players.set(viewId, {
+            id: viewId,
+            name: viewData.playerName || 'Player',
+            isHost: viewId === this.hostId,
+            joinedAt: this.now()
+          });
+          
+          // Store room code from first player
+          if (viewData.roomCode) {
+            this.roomCode = viewData.roomCode;
+          }
+          
+          console.log(`👋 ${viewData.playerName} joined lobby`);
+          this.broadcastUpdate();
+        }
+        
+        viewExited(viewInfo) {
+          console.log('👋 View exited:', viewInfo);
+          
+          const viewId = viewInfo.viewId;
+          if (this.players.has(viewId)) {
+            const player = this.players.get(viewId);
+            this.players.delete(viewId);
+            
+            // Reassign host if needed
+            if (this.hostId === viewId && this.players.size > 0) {
+              const newHostId = this.players.keys().next().value;
+              this.hostId = newHostId;
+              const newHost = this.players.get(newHostId);
+              newHost.isHost = true;
+              console.log(`👑 ${newHost.name} is the new host`);
+            }
+            
+            console.log(`👋 ${player.name} left lobby`);
+            this.broadcastUpdate();
+          }
+        }
+        
+        updatePlayerName(senderId, data) {
+          console.log('📝 Name update from:', senderId, data);
+          
+          if (this.players.has(senderId)) {
+            const player = this.players.get(senderId);
+            player.name = data.name;
+            console.log(`📝 ${senderId} renamed to: ${data.name}`);
+            this.broadcastUpdate();
+          }
+        }
+        
+        startGame(senderId, data) {
+          console.log('🚀 Start game request from:', senderId);
+          
+          if (senderId === this.hostId && this.players.size >= 2) {
+            console.log('🚀 Starting game with players:', Array.from(this.players.values()));
+            this.publish(this.sessionId, "gameStarting", {
+              players: Array.from(this.players.values()),
+              roomCode: this.roomCode,
+              timestamp: this.now()
+            });
+          }
+        }
+        
+        sendCurrentState(senderId, data) {
+          console.log('📤 Sending current state to:', senderId);
+          
+          const lobbyData = {
+            players: Array.from(this.players.values()),
+            hostId: this.hostId,
+            roomCode: this.roomCode,
+            playerCount: this.players.size,
+            maxPlayers: this.maxPlayers
           };
           
-          console.log(`✅ Player ${playerName} joined. Total players: ${Object.keys(this.lobbyState.players).length}`);
-          
-          // Broadcast updated lobby state
-          this.broadcastLobbyState();
+          // Send to specific requesting view
+          this.publish(senderId, "lobbyStateResponse", lobbyData);
         }
         
-        // Handle player leaving the lobby
-        handlePlayerLeave(senderId, data) {
-          console.log(`👋 Player ${senderId} leaving lobby`);
+        broadcastUpdate() {
+          const lobbyData = {
+            players: Array.from(this.players.values()),
+            hostId: this.hostId,
+            roomCode: this.roomCode,
+            playerCount: this.players.size,
+            maxPlayers: this.maxPlayers
+          };
           
-          if (this.lobbyState.players[senderId]) {
-            const playerName = this.lobbyState.players[senderId].name;
-            delete this.lobbyState.players[senderId];
-            
-            // Transfer host if current host left
-            if (this.lobbyState.hostId === senderId) {
-              const remainingPlayers = Object.keys(this.lobbyState.players);
-              if (remainingPlayers.length > 0) {
-                this.lobbyState.hostId = remainingPlayers[0];
-                this.lobbyState.players[this.lobbyState.hostId].isHost = true;
-                console.log(`👑 ${this.lobbyState.hostId} is now the host`);
-              } else {
-                this.lobbyState.hostId = null;
-              }
-            }
-            
-            console.log(`✅ Player ${playerName} left. Total players: ${Object.keys(this.lobbyState.players).length}`);
-            this.broadcastLobbyState();
-          }
-        }
-        
-        // Handle player name updates (real-time typing)
-        handlePlayerUpdateName(senderId, data) {
-          const { playerName } = data;
-          
-          if (this.lobbyState.players[senderId]) {
-            this.lobbyState.players[senderId].name = playerName;
-            console.log(`📝 ${senderId} updated name to: ${playerName}`);
-            this.broadcastLobbyState();
-          }
-        }
-        
-        // Handle game start
-        handleStartGame(senderId, data) {
-          // Only host can start the game
-          if (senderId !== this.lobbyState.hostId) {
-            console.log(`❌ ${senderId} tried to start game but is not host`);
-            return;
-          }
-          
-          const playerCount = Object.keys(this.lobbyState.players).length;
-          if (playerCount < 1) { // Allow 1 player for testing
-            console.log(`❌ Not enough players to start (${playerCount})`);
-            return;
-          }
-          
-          console.log(`🚀 Host ${senderId} starting game with ${playerCount} players`);
-          this.lobbyState.isGameStarted = true;
-          
-          // Broadcast game start
-          this.publish('GAME_STARTING', {
-            players: this.lobbyState.players,
-            sessionName: this.lobbyState.sessionName,
-          });
-          
-          this.broadcastLobbyState();
-        }
-        
-        // Broadcast current lobby state to all clients
-        broadcastLobbyState() {
-          this.publish('LOBBY_STATE_UPDATE', this.lobbyState);
+          console.log('📊 Broadcasting lobby state:', lobbyData);
+          this.publish(this.sessionId, "lobbyUpdated", lobbyData);
         }
       }
       
-      // Register the lobby model
-      LobbyModel.register('LobbyModel');
-      
-      // Lobby View for handling UI updates
-      class LobbyView extends Multisynq.View {
-        constructor(model) {
-          super(model);
-          this.model = model;
+      // Register the model (required by MultiSynq)
+      LobbyModel.register("LobbyModel");
+
+      // Lobby View - following official MultiSynq View pattern
+      class LobbyDisplay extends Multisynq.View {
+        constructor(model, viewOptions) {
+          super(model, viewOptions);
           
-          // Subscribe to lobby state updates
-          this.subscribe(this.model.id, 'LOBBY_STATE_UPDATE', (lobbyState) => {
-            updateLobbyUI(lobbyState);
+          console.log('👁️ Lobby View initialized, viewId:', this.viewId);
+          
+          // Subscribe to model events (as per MultiSynq docs)
+          this.subscribe(this.sessionId, "lobbyUpdated", this.updateDisplay);
+          this.subscribe(this.sessionId, "gameStarting", this.handleGameStart);
+          this.subscribe(this.viewId, "lobbyStateResponse", this.updateDisplay);
+          
+          // Request current state immediately after view is ready
+          this.future(100).requestCurrentState();
+        }
+        
+        requestCurrentState() {
+          console.log('🔄 Requesting current lobby state...');
+          this.publish(this.viewId, "requestLobbyState", {});
+        }
+        
+        updateDisplay(lobbyData) {
+          console.log('🔄 Updating display with data:', lobbyData);
+          console.log('🔄 Players in data:', lobbyData.players);
+          console.log('🔄 My viewId:', this.viewId);
+          
+          // Update player count
+          document.getElementById('playerCount').textContent = lobbyData.playerCount;
+          
+          // Update room code display
+          if (lobbyData.roomCode) {
+            document.getElementById('roomCodeDisplay').textContent = lobbyData.roomCode;
+          }
+          
+          // Update players grid
+          const playersGrid = document.getElementById('playersGrid');
+          playersGrid.innerHTML = '';
+          
+          lobbyData.players.forEach(player => {
+            const playerCard = document.createElement('div');
+            playerCard.className = 'player-card';
+            
+            // Add styling based on player status
+            if (player.isHost) playerCard.classList.add('host');
+            if (player.id === this.viewId) playerCard.classList.add('self');
+            
+            // Create badges
+            const badges = [];
+            if (player.isHost) badges.push('<span class="badge host">👑 HOST</span>');
+            if (player.id === this.viewId) badges.push('<span class="badge you">YOU</span>');
+            
+            playerCard.innerHTML = `
+              <div class="player-name">${player.name}</div>
+              <div class="player-badges">${badges.join('')}</div>
+            `;
+            
+            playersGrid.appendChild(playerCard);
           });
           
-          // Subscribe to game starting
-          this.subscribe(this.model.id, 'GAME_STARTING', (gameData) => {
-            console.log('🚀 Game is starting!', gameData);
-            alert('Game starting! (Game page not implemented yet)');
-          });
+          // Update start button
+          this.updateStartButton(lobbyData);
+        }
+        
+        updateStartButton(lobbyData) {
+          const startBtn = document.getElementById('startBtn');
+          const isHost = lobbyData.players.find(p => p.id === this.viewId)?.isHost;
+          const canStart = lobbyData.playerCount >= 2;
           
-          console.log('👁️ Lobby view initialized');
+          if (isHost) {
+            startBtn.disabled = !canStart;
+            startBtn.textContent = canStart ? 
+              `🚀 Start Game (${lobbyData.playerCount} players)` : 
+              '🚀 Need 2+ players to start';
+          } else {
+            startBtn.disabled = true;
+            startBtn.textContent = '⏳ Waiting for host to start...';
+          }
+        }
+        
+        handleGameStart(gameData) {
+          console.log('🚀 Game starting!', gameData);
+          alert(`Game starting with ${gameData.players.length} players!\n(Game page not implemented yet)`);
+        }
+        
+        // Publish events to model
+        publishNameUpdate(name) {
+          this.publish(this.viewId, "updateName", { name: name });
+        }
+        
+        publishStartGame() {
+          this.publish(this.viewId, "startGame", { timestamp: Date.now() });
         }
       }
-      
+
+      // Global variables
+      let currentSession = null;
+      let currentView = null;
+      let currentRoomCode = null;
+
       // DOM elements
-      const statusIndicator = document.querySelector('.status-indicator');
-      const statusText = document.getElementById('statusText');
-      const sessionSetup = document.getElementById('sessionSetup');
-      const sessionInfo = document.getElementById('sessionInfo');
+      const setupDiv = document.getElementById('setup');
+      const lobbyDiv = document.getElementById('lobby');
+      const statusDiv = document.getElementById('status');
       const playerNameInput = document.getElementById('playerName');
       const sessionNameInput = document.getElementById('sessionName');
+      const roomCodeInput = document.getElementById('roomCode');
       const createBtn = document.getElementById('createBtn');
       const joinBtn = document.getElementById('joinBtn');
-      const startGameBtn = document.getElementById('startGameBtn');
+      const createTab = document.getElementById('createTab');
+      const joinTab = document.getElementById('joinTab');
+      const createPanel = document.getElementById('createPanel');
+      const joinPanel = document.getElementById('joinPanel');
+      const startBtn = document.getElementById('startBtn');
       const leaveBtn = document.getElementById('leaveBtn');
-      const copyUrlBtn = document.getElementById('copyUrlBtn');
-      const currentSessionSpan = document.getElementById('currentSession');
-      const sessionUrlSpan = document.getElementById('sessionUrl');
-      const playerCountSpan = document.getElementById('playerCount');
-      const playersListDiv = document.getElementById('playersList');
-      
-      // State
-      let session = null;
-      let lobbyModel = null;
-      let players = new Map();
-      let myPlayerId = null;
-      let isHost = false;
-      let nameUpdateTimeout = null;
-      
-      // Initialize
-      document.addEventListener('DOMContentLoaded', () => {
-        // Set default values
-        playerNameInput.value = `Player_${Math.random().toString(36).substr(2, 4)}`;
-        sessionNameInput.value = CONFIG.defaultSessionName;
-        
-        // Add event listeners
-        createBtn.addEventListener('click', createSession);
-        joinBtn.addEventListener('click', joinSession);
-        startGameBtn.addEventListener('click', startGame);
-        leaveBtn.addEventListener('click', leaveSession);
-        copyUrlBtn.addEventListener('click', copyInviteLink);
-        
-        // Real-time name updates
-        playerNameInput.addEventListener('input', () => {
-          if (session && session.view && myPlayerId) {
-            // Debounce name updates to avoid spam
-            clearTimeout(nameUpdateTimeout);
-            nameUpdateTimeout = setTimeout(() => {
-              session.view.publish(myPlayerId, 'PLAYER_UPDATE_NAME', {
-                playerName: playerNameInput.value
-              });
-            }, 300);
-          }
-        });
-        
-        updateStatus('Ready to connect', 'disconnected');
-      });
-      
-      // Update status display
+      const copyBtn = document.getElementById('copyBtn');
+      const inviteUrlInput = document.getElementById('inviteUrl');
+
+      // Utility functions
+      function generateRoomCode() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let result = '';
+        for (let i = 0; i < 6; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+      }
+
       function updateStatus(message, type = 'connecting') {
-        statusText.textContent = message;
-        statusIndicator.className = `status-indicator ${type}`;
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
       }
-      
-      // Create new session
-      async function createSession() {
-        if (!playerNameInput.value.trim()) {
+
+      function switchTab(tab) {
+        createTab.classList.toggle('active', tab === 'create');
+        joinTab.classList.toggle('active', tab === 'join');
+        createPanel.classList.toggle('hidden', tab !== 'create');
+        joinPanel.classList.toggle('hidden', tab !== 'join');
+      }
+
+      // Create room using official MultiSynq Session.join()
+      async function createRoom() {
+        const playerName = playerNameInput.value.trim();
+        if (!playerName) {
+          alert('Please enter your name');
+          return;
+        }
+
+        try {
+          updateStatus('Creating room...', 'connecting');
+          
+          currentRoomCode = generateRoomCode();
+          
+          // Use official MultiSynq Session.join() API
+          currentSession = await Multisynq.Session.join({
+            apiKey: CONFIG.apiKey,
+            appId: CONFIG.appId,
+            name: `bomberman-${currentRoomCode}`,
+            password: 'bomberman',
+            model: LobbyModel,
+            view: LobbyDisplay,
+            viewData: {
+              playerName: playerName,
+              roomCode: currentRoomCode
+            }
+          });
+
+          currentView = currentSession.view;
+          
+          console.log('✅ Session created:', currentSession.id);
+          setupLobbyDisplay();
+          updateStatus(`Room ${currentRoomCode} created!`, 'connected');
+          
+          // Force request lobby state after a short delay
+          setTimeout(() => {
+            if (currentView) {
+              currentView.requestCurrentState();
+            }
+          }, 500);
+          
+        } catch (error) {
+          console.error('❌ Failed to create room:', error);
+          updateStatus('Failed to create room', 'error');
+        }
+      }
+
+      // Join room using official MultiSynq Session.join()
+      async function joinRoom() {
+        const playerName = playerNameInput.value.trim();
+        const roomCode = roomCodeInput.value.trim().toUpperCase();
+        
+        if (!playerName) {
           alert('Please enter your name');
           return;
         }
         
-        try {
-          updateStatus('Creating session...', 'connecting');
-          
-          session = await Multisynq.Session.join({
-            appId: CONFIG.appId,
-            apiKey: CONFIG.apiKey,
-            model: LobbyModel,
-            view: LobbyView,
-            name: sessionNameInput.value || CONFIG.defaultSessionName,
-            password: 'no-password',
-            viewData: {
-              playerName: playerNameInput.value
-            }
-          });
-          
-          myPlayerId = session.viewId;
-          await setupSession();
-          updateStatus('Session created!', 'connected');
-          
-        } catch (error) {
-          console.error('Failed to create session:', error);
-          updateStatus('Failed to create session', 'disconnected');
-        }
-      }
-      
-      // Join existing session
-      async function joinSession() {
-        if (!playerNameInput.value.trim()) {
-          alert('Please enter your name');
+        if (!roomCode || roomCode.length !== 6) {
+          alert('Please enter a valid 6-character room code');
           return;
         }
-        
+
         try {
-          updateStatus('Joining session...', 'connecting');
+          updateStatus('Joining room...', 'connecting');
           
-          session = await Multisynq.Session.join({
-            appId: CONFIG.appId,
+          currentRoomCode = roomCode;
+          
+          // Use official MultiSynq Session.join() API
+          currentSession = await Multisynq.Session.join({
             apiKey: CONFIG.apiKey,
+            appId: CONFIG.appId,
+            name: `bomberman-${roomCode}`,
+            password: 'bomberman',
             model: LobbyModel,
-            view: LobbyView,
-            name: sessionNameInput.value || CONFIG.defaultSessionName,
-            password: 'no-password',
+            view: LobbyDisplay,
             viewData: {
-              playerName: playerNameInput.value
+              playerName: playerName,
+              roomCode: roomCode
             }
           });
+
+          currentView = currentSession.view;
           
-          myPlayerId = session.viewId;
-          await setupSession();
-          updateStatus('Joined session!', 'connected');
+          console.log('✅ Session joined:', currentSession.id);
+          setupLobbyDisplay();
+          updateStatus(`Joined room ${roomCode}!`, 'connected');
           
-        } catch (error) {
-          console.error('Failed to join session:', error);
-          updateStatus('Failed to join session', 'disconnected');
-        }
-      }
-      
-      // Setup session after connection
-      async function setupSession() {
-        try {
-          // The model is automatically available via Session.join
-          lobbyModel = session.model;
-          console.log('🤝 Connected to lobby model');
-          
-          // Hide setup, show session info
-          sessionSetup.classList.add('hidden');
-          sessionInfo.classList.remove('hidden');
-          
-          // Update session info
-          currentSessionSpan.textContent = session.sessionId || 'Unknown';
-          sessionUrlSpan.textContent = window.location.href;
-          
-          // Join the lobby (the view should automatically trigger via viewData)
-          // But let's also manually trigger it to be sure
-          session.view.publish(myPlayerId, 'PLAYER_JOIN_LOBBY', {
-            playerName: playerNameInput.value
-          });
+          // Force request lobby state after a short delay
+          setTimeout(() => {
+            if (currentView) {
+              currentView.requestCurrentState();
+            }
+          }, 500);
           
         } catch (error) {
-          console.error('Failed to setup session:', error);
-          updateStatus('Failed to setup lobby', 'disconnected');
+          console.error('❌ Failed to join room:', error);
+          updateStatus('Failed to join room', 'error');
         }
       }
-      
-      // Update lobby UI based on shared state
-      function updateLobbyUI(lobbyState) {
-        console.log('🔄 Updating lobby UI:', lobbyState);
+
+      // Setup lobby display
+      function setupLobbyDisplay() {
+        setupDiv.classList.add('hidden');
+        lobbyDiv.classList.remove('hidden');
         
-        // Clear current player list
-        playersListDiv.innerHTML = '';
-        players.clear();
-        
-        // Update player count
-        const playerCount = Object.keys(lobbyState.players).length;
-        playerCountSpan.textContent = playerCount;
-        
-        // Check if I'm the host
-        isHost = lobbyState.hostId === myPlayerId;
-        
-        // Add each player to the list
-        Object.values(lobbyState.players).forEach(player => {
-          players.set(player.id, player);
-          
-          const playerDiv = document.createElement('div');
-          playerDiv.className = 'player-item';
-          playerDiv.id = `player-${player.id}`;
-          
-          // Create player display with host indicator
-          const isMe = player.id === myPlayerId;
-          const hostIcon = player.isHost ? '👑 ' : '';
-          const meText = isMe ? ' (You)' : '';
-          
-          playerDiv.innerHTML = `
-            <span>${hostIcon}${player.name}${meText}</span>
-            <span style="color: #4CAF50;">● Online</span>
-          `;
-          
-          playersListDiv.appendChild(playerDiv);
-        });
-        
-        // Update start button (only host can start)
-        updateStartButton(playerCount);
+        // Set invite URL
+        const baseUrl = window.location.origin + window.location.pathname;
+        const inviteUrl = `${baseUrl}?room=${currentRoomCode}`;
+        inviteUrlInput.value = inviteUrl;
       }
-      
-      // Update start button based on player count and host status
-      function updateStartButton(playerCount) {
-        if (isHost) {
-          startGameBtn.disabled = playerCount < 1;
-          startGameBtn.textContent = playerCount >= 2 ? 
-            '🚀 Start Game' : 
-            '🚀 Start Game (Testing with 1 player)';
-          startGameBtn.style.opacity = '1';
-        } else {
-          startGameBtn.disabled = true;
-          startGameBtn.textContent = '⏳ Waiting for host to start...';
-          startGameBtn.style.opacity = '0.6';
-        }
-      }
-      
-      // Start the game
+
+      // Start game
       function startGame() {
-        if (!isHost) {
-          alert('Only the host can start the game');
-          return;
+        if (currentView) {
+          currentView.publishStartGame();
         }
-        
-        if (players.size < 1) {
-          alert('Need at least 1 player to start (for testing)');
-          return;
-        }
-        
-        // Send start game event through MultiSynq
-        session.view.publish(myPlayerId, 'START_GAME', {
-          timestamp: Date.now()
-        });
       }
-      
-      // Leave session
-      function leaveSession() {
-        // Notify lobby model that we're leaving
-        if (session && session.view && myPlayerId) {
-          session.view.publish(myPlayerId, 'PLAYER_LEAVE_LOBBY', {
-            playerId: myPlayerId
-          });
-        }
-        
-        if (session && session.view) {
-          session.view.detach();
+
+      // Leave room using official session.leave()
+      async function leaveRoom() {
+        try {
+          if (currentSession) {
+            await currentSession.leave();
+            console.log('✅ Left session');
+          }
+        } catch (error) {
+          console.error('❌ Error leaving session:', error);
         }
         
         // Reset state
-        session = null;
-        lobbyModel = null;
-        myPlayerId = null;
-        isHost = false;
+        currentSession = null;
+        currentView = null;
+        currentRoomCode = null;
         
         // Reset UI
-        sessionSetup.classList.remove('hidden');
-        sessionInfo.classList.add('hidden');
-        players.clear();
-        playersListDiv.innerHTML = '';
+        setupDiv.classList.remove('hidden');
+        lobbyDiv.classList.add('hidden');
+        updateStatus('Ready to connect', 'connecting');
+      }
+
+      // Copy invite URL
+      function copyInviteUrl() {
+        inviteUrlInput.select();
+        document.execCommand('copy');
+        copyBtn.textContent = '✅ Copied!';
+        setTimeout(() => {
+          copyBtn.textContent = '📋 Copy';
+        }, 2000);
+      }
+
+      // Check for room code in URL
+      function checkUrlForRoomCode() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
         
-        updateStatus('Ready to connect', 'disconnected');
+        if (roomCode && roomCode.length === 6) {
+          switchTab('join');
+          roomCodeInput.value = roomCode.toUpperCase();
+          playerNameInput.focus();
+          console.log('🔗 Room code detected in URL:', roomCode);
+        }
       }
+
+      // Event listeners
+      createTab.addEventListener('click', () => switchTab('create'));
+      joinTab.addEventListener('click', () => switchTab('join'));
+      createBtn.addEventListener('click', createRoom);
+      joinBtn.addEventListener('click', joinRoom);
+      startBtn.addEventListener('click', startGame);
+      leaveBtn.addEventListener('click', leaveRoom);
+      copyBtn.addEventListener('click', copyInviteUrl);
+
+      // Room code input formatting
+      roomCodeInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      });
+
+      // Real-time name updates
+      let nameUpdateTimeout;
+      playerNameInput.addEventListener('input', () => {
+        if (currentView) {
+          clearTimeout(nameUpdateTimeout);
+          nameUpdateTimeout = setTimeout(() => {
+            currentView.publishNameUpdate(playerNameInput.value);
+          }, 300);
+        }
+      });
+
+      // Initialize
+      updateStatus('Ready to connect', 'connecting');
+      checkUrlForRoomCode();
       
-      // Copy invite link
-      function copyInviteLink() {
-        navigator.clipboard.writeText(window.location.href).then(() => {
-          const originalText = copyUrlBtn.textContent;
-          copyUrlBtn.textContent = '✅ Copied!';
-          setTimeout(() => {
-            copyUrlBtn.textContent = originalText;
-          }, 2000);
-        });
-      }
+      console.log('🎮 Bomberman Lobby initialized');
     </script>
   </body>
 </html>
