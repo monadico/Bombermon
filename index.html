@@ -1,8 +1,9 @@
 
+<!DOCTYPE html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8">
-    <title>BomberMan Kaboom.js</title>
+    <title>Bomberman - Multiplayer Lobby</title>
     <style>
       body {
         margin: 0;
@@ -65,17 +66,543 @@
       .singleplayer-btn {
         background: linear-gradient(45deg, #FF9800, #F57C00);
       }
+      
+      .status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+        animation: pulse 2s infinite;
+      }
+      
+      .connecting { background: #FF9800; }
+      .connected { background: #4CAF50; }
+      .disconnected { background: #f44336; }
+      
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+      }
+      
+      .session-info {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        border-radius: 10px;
+        margin: 20px 0;
+        text-align: left;
+      }
+      
+      .player-list {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 15px;
+      }
+      
+      .player-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      
+      .player-item:last-child {
+        border-bottom: none;
+      }
+      
+      .input-group {
+        margin: 15px 0;
+        text-align: left;
+      }
+      
+      .input-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      
+      .input-group input {
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 5px;
+        font-size: 1em;
+        background: rgba(255, 255, 255, 0.9);
+        color: #333;
+      }
+      
+      .hidden {
+        display: none;
+      }
     </style>
   </head>
   <body>
     <div class="menu-container">
-      <h1>💣 Bomberman</h1>
-      <p>Choose your game mode:</p>
+      <h1>💣 Bomberman Lobby</h1>
       
-      <div class="menu-buttons">
-        <a href="multiplayer/lobby.html" class="menu-btn multiplayer-btn">🎮 Multiplayer</a>
-        <a href="singleplayer/singleplayer.html" class="menu-btn singleplayer-btn">👤 Single Player</a>
+      <!-- Connection Status -->
+      <div id="status">
+        <span class="status-indicator connecting"></span>
+        <span id="statusText">Connecting to MultiSynq...</span>
+      </div>
+      
+      <!-- Session Setup (shown initially) -->
+      <div id="sessionSetup">
+        <div class="input-group">
+          <label for="playerName">Your Name:</label>
+          <input type="text" id="playerName" placeholder="Enter your name" maxlength="15">
+        </div>
+        
+        <div class="input-group">
+          <label for="sessionName">Session Name:</label>
+          <input type="text" id="sessionName" placeholder="bombermon dev" maxlength="20">
+        </div>
+        
+        <div class="menu-buttons">
+          <button class="menu-btn multiplayer-btn" id="createBtn">🎮 Create Session</button>
+          <button class="menu-btn multiplayer-btn" id="joinBtn">🔗 Join Session</button>
+          <a href="singleplayer/singleplayer.html" class="menu-btn singleplayer-btn">👤 Single Player</a>
+        </div>
+      </div>
+      
+      <!-- Session Info (shown when connected) -->
+      <div id="sessionInfo" class="session-info hidden">
+        <h3>🎯 Session: <span id="currentSession"></span></h3>
+        <p><strong>Session URL:</strong> <span id="sessionUrl"></span></p>
+        <button class="menu-btn" id="copyUrlBtn">📋 Copy Invite Link</button>
+        
+        <div class="player-list">
+          <h4>👥 Players (<span id="playerCount">0</span>/4):</h4>
+          <div id="playersList">
+            <!-- Players will be added here -->
+          </div>
+        </div>
+        
+        <div class="menu-buttons">
+          <button class="menu-btn multiplayer-btn" id="startGameBtn" disabled>🚀 Start Game</button>
+          <button class="menu-btn" id="leaveBtn">🚪 Leave Session</button>
+        </div>
       </div>
     </div>
+
+    <!-- MultiSynq CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@multisynq/client@latest"></script>
+    
+    <script>
+      // Configuration
+      const CONFIG = {
+        appId: 'io.multisynq.ravel.bombermon',
+        apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
+        defaultSessionName: 'bombermon dev',
+      };
+      
+      // Lobby Model for real-time state synchronization
+      class LobbyModel extends Multisynq.Model {
+        init() {
+          console.log('🏠 Initializing Lobby Model');
+          
+          // Shared lobby state
+          this.lobbyState = {
+            sessionName: '',
+            players: {},
+            maxPlayers: 4,
+            isGameStarted: false,
+            hostId: null,
+          };
+          
+          // Subscribe to lobby events
+          this.subscribe('*', 'PLAYER_JOIN_LOBBY', this.handlePlayerJoin.bind(this));
+          this.subscribe('*', 'PLAYER_LEAVE_LOBBY', this.handlePlayerLeave.bind(this));
+          this.subscribe('*', 'PLAYER_UPDATE_NAME', this.handlePlayerUpdateName.bind(this));
+          this.subscribe('*', 'START_GAME', this.handleStartGame.bind(this));
+          
+          console.log('✅ Lobby Model initialized');
+        }
+        
+        // Handle player joining the lobby
+        handlePlayerJoin(senderId, data) {
+          console.log(`👋 Player ${senderId} joining lobby`);
+          
+          const { playerName } = data;
+          
+          // Set host if first player
+          if (!this.lobbyState.hostId) {
+            this.lobbyState.hostId = senderId;
+            console.log(`👑 ${senderId} is now the host`);
+          }
+          
+          // Add player to lobby
+          this.lobbyState.players[senderId] = {
+            id: senderId,
+            name: playerName || `Player_${senderId.slice(-4)}`,
+            isHost: senderId === this.lobbyState.hostId,
+            joinedAt: Date.now(),
+            isReady: false,
+          };
+          
+          console.log(`✅ Player ${playerName} joined. Total players: ${Object.keys(this.lobbyState.players).length}`);
+          
+          // Broadcast updated lobby state
+          this.broadcastLobbyState();
+        }
+        
+        // Handle player leaving the lobby
+        handlePlayerLeave(senderId, data) {
+          console.log(`👋 Player ${senderId} leaving lobby`);
+          
+          if (this.lobbyState.players[senderId]) {
+            const playerName = this.lobbyState.players[senderId].name;
+            delete this.lobbyState.players[senderId];
+            
+            // Transfer host if current host left
+            if (this.lobbyState.hostId === senderId) {
+              const remainingPlayers = Object.keys(this.lobbyState.players);
+              if (remainingPlayers.length > 0) {
+                this.lobbyState.hostId = remainingPlayers[0];
+                this.lobbyState.players[this.lobbyState.hostId].isHost = true;
+                console.log(`👑 ${this.lobbyState.hostId} is now the host`);
+              } else {
+                this.lobbyState.hostId = null;
+              }
+            }
+            
+            console.log(`✅ Player ${playerName} left. Total players: ${Object.keys(this.lobbyState.players).length}`);
+            this.broadcastLobbyState();
+          }
+        }
+        
+        // Handle player name updates (real-time typing)
+        handlePlayerUpdateName(senderId, data) {
+          const { playerName } = data;
+          
+          if (this.lobbyState.players[senderId]) {
+            this.lobbyState.players[senderId].name = playerName;
+            console.log(`📝 ${senderId} updated name to: ${playerName}`);
+            this.broadcastLobbyState();
+          }
+        }
+        
+        // Handle game start
+        handleStartGame(senderId, data) {
+          // Only host can start the game
+          if (senderId !== this.lobbyState.hostId) {
+            console.log(`❌ ${senderId} tried to start game but is not host`);
+            return;
+          }
+          
+          const playerCount = Object.keys(this.lobbyState.players).length;
+          if (playerCount < 1) { // Allow 1 player for testing
+            console.log(`❌ Not enough players to start (${playerCount})`);
+            return;
+          }
+          
+          console.log(`🚀 Host ${senderId} starting game with ${playerCount} players`);
+          this.lobbyState.isGameStarted = true;
+          
+          // Broadcast game start
+          this.publish('GAME_STARTING', {
+            players: this.lobbyState.players,
+            sessionName: this.lobbyState.sessionName,
+          });
+          
+          this.broadcastLobbyState();
+        }
+        
+        // Broadcast current lobby state to all clients
+        broadcastLobbyState() {
+          this.publish('LOBBY_STATE_UPDATE', this.lobbyState);
+        }
+      }
+      
+      // Register the lobby model
+      LobbyModel.register('LobbyModel');
+      
+      // Lobby View for handling UI updates
+      class LobbyView extends Multisynq.View {
+        constructor(model) {
+          super(model);
+          this.model = model;
+          
+          // Subscribe to lobby state updates
+          this.subscribe(this.model.id, 'LOBBY_STATE_UPDATE', (lobbyState) => {
+            updateLobbyUI(lobbyState);
+          });
+          
+          // Subscribe to game starting
+          this.subscribe(this.model.id, 'GAME_STARTING', (gameData) => {
+            console.log('🚀 Game is starting!', gameData);
+            alert('Game starting! (Game page not implemented yet)');
+          });
+          
+          console.log('👁️ Lobby view initialized');
+        }
+      }
+      
+      // DOM elements
+      const statusIndicator = document.querySelector('.status-indicator');
+      const statusText = document.getElementById('statusText');
+      const sessionSetup = document.getElementById('sessionSetup');
+      const sessionInfo = document.getElementById('sessionInfo');
+      const playerNameInput = document.getElementById('playerName');
+      const sessionNameInput = document.getElementById('sessionName');
+      const createBtn = document.getElementById('createBtn');
+      const joinBtn = document.getElementById('joinBtn');
+      const startGameBtn = document.getElementById('startGameBtn');
+      const leaveBtn = document.getElementById('leaveBtn');
+      const copyUrlBtn = document.getElementById('copyUrlBtn');
+      const currentSessionSpan = document.getElementById('currentSession');
+      const sessionUrlSpan = document.getElementById('sessionUrl');
+      const playerCountSpan = document.getElementById('playerCount');
+      const playersListDiv = document.getElementById('playersList');
+      
+      // State
+      let session = null;
+      let lobbyModel = null;
+      let players = new Map();
+      let myPlayerId = null;
+      let isHost = false;
+      let nameUpdateTimeout = null;
+      
+      // Initialize
+      document.addEventListener('DOMContentLoaded', () => {
+        // Set default values
+        playerNameInput.value = `Player_${Math.random().toString(36).substr(2, 4)}`;
+        sessionNameInput.value = CONFIG.defaultSessionName;
+        
+        // Add event listeners
+        createBtn.addEventListener('click', createSession);
+        joinBtn.addEventListener('click', joinSession);
+        startGameBtn.addEventListener('click', startGame);
+        leaveBtn.addEventListener('click', leaveSession);
+        copyUrlBtn.addEventListener('click', copyInviteLink);
+        
+        // Real-time name updates
+        playerNameInput.addEventListener('input', () => {
+          if (session && session.view && myPlayerId) {
+            // Debounce name updates to avoid spam
+            clearTimeout(nameUpdateTimeout);
+            nameUpdateTimeout = setTimeout(() => {
+              session.view.publish(myPlayerId, 'PLAYER_UPDATE_NAME', {
+                playerName: playerNameInput.value
+              });
+            }, 300);
+          }
+        });
+        
+        updateStatus('Ready to connect', 'disconnected');
+      });
+      
+      // Update status display
+      function updateStatus(message, type = 'connecting') {
+        statusText.textContent = message;
+        statusIndicator.className = `status-indicator ${type}`;
+      }
+      
+      // Create new session
+      async function createSession() {
+        if (!playerNameInput.value.trim()) {
+          alert('Please enter your name');
+          return;
+        }
+        
+        try {
+          updateStatus('Creating session...', 'connecting');
+          
+          session = await Multisynq.Session.join({
+            appId: CONFIG.appId,
+            apiKey: CONFIG.apiKey,
+            model: LobbyModel,
+            view: LobbyView,
+            name: sessionNameInput.value || CONFIG.defaultSessionName,
+            password: 'no-password',
+            viewData: {
+              playerName: playerNameInput.value
+            }
+          });
+          
+          myPlayerId = session.viewId;
+          await setupSession();
+          updateStatus('Session created!', 'connected');
+          
+        } catch (error) {
+          console.error('Failed to create session:', error);
+          updateStatus('Failed to create session', 'disconnected');
+        }
+      }
+      
+      // Join existing session
+      async function joinSession() {
+        if (!playerNameInput.value.trim()) {
+          alert('Please enter your name');
+          return;
+        }
+        
+        try {
+          updateStatus('Joining session...', 'connecting');
+          
+          session = await Multisynq.Session.join({
+            appId: CONFIG.appId,
+            apiKey: CONFIG.apiKey,
+            model: LobbyModel,
+            view: LobbyView,
+            name: sessionNameInput.value || CONFIG.defaultSessionName,
+            password: 'no-password',
+            viewData: {
+              playerName: playerNameInput.value
+            }
+          });
+          
+          myPlayerId = session.viewId;
+          await setupSession();
+          updateStatus('Joined session!', 'connected');
+          
+        } catch (error) {
+          console.error('Failed to join session:', error);
+          updateStatus('Failed to join session', 'disconnected');
+        }
+      }
+      
+      // Setup session after connection
+      async function setupSession() {
+        try {
+          // The model is automatically available via Session.join
+          lobbyModel = session.model;
+          console.log('🤝 Connected to lobby model');
+          
+          // Hide setup, show session info
+          sessionSetup.classList.add('hidden');
+          sessionInfo.classList.remove('hidden');
+          
+          // Update session info
+          currentSessionSpan.textContent = session.sessionId || 'Unknown';
+          sessionUrlSpan.textContent = window.location.href;
+          
+          // Join the lobby (the view should automatically trigger via viewData)
+          // But let's also manually trigger it to be sure
+          session.view.publish(myPlayerId, 'PLAYER_JOIN_LOBBY', {
+            playerName: playerNameInput.value
+          });
+          
+        } catch (error) {
+          console.error('Failed to setup session:', error);
+          updateStatus('Failed to setup lobby', 'disconnected');
+        }
+      }
+      
+      // Update lobby UI based on shared state
+      function updateLobbyUI(lobbyState) {
+        console.log('🔄 Updating lobby UI:', lobbyState);
+        
+        // Clear current player list
+        playersListDiv.innerHTML = '';
+        players.clear();
+        
+        // Update player count
+        const playerCount = Object.keys(lobbyState.players).length;
+        playerCountSpan.textContent = playerCount;
+        
+        // Check if I'm the host
+        isHost = lobbyState.hostId === myPlayerId;
+        
+        // Add each player to the list
+        Object.values(lobbyState.players).forEach(player => {
+          players.set(player.id, player);
+          
+          const playerDiv = document.createElement('div');
+          playerDiv.className = 'player-item';
+          playerDiv.id = `player-${player.id}`;
+          
+          // Create player display with host indicator
+          const isMe = player.id === myPlayerId;
+          const hostIcon = player.isHost ? '👑 ' : '';
+          const meText = isMe ? ' (You)' : '';
+          
+          playerDiv.innerHTML = `
+            <span>${hostIcon}${player.name}${meText}</span>
+            <span style="color: #4CAF50;">● Online</span>
+          `;
+          
+          playersListDiv.appendChild(playerDiv);
+        });
+        
+        // Update start button (only host can start)
+        updateStartButton(playerCount);
+      }
+      
+      // Update start button based on player count and host status
+      function updateStartButton(playerCount) {
+        if (isHost) {
+          startGameBtn.disabled = playerCount < 1;
+          startGameBtn.textContent = playerCount >= 2 ? 
+            '🚀 Start Game' : 
+            '🚀 Start Game (Testing with 1 player)';
+          startGameBtn.style.opacity = '1';
+        } else {
+          startGameBtn.disabled = true;
+          startGameBtn.textContent = '⏳ Waiting for host to start...';
+          startGameBtn.style.opacity = '0.6';
+        }
+      }
+      
+      // Start the game
+      function startGame() {
+        if (!isHost) {
+          alert('Only the host can start the game');
+          return;
+        }
+        
+        if (players.size < 1) {
+          alert('Need at least 1 player to start (for testing)');
+          return;
+        }
+        
+        // Send start game event through MultiSynq
+        session.view.publish(myPlayerId, 'START_GAME', {
+          timestamp: Date.now()
+        });
+      }
+      
+      // Leave session
+      function leaveSession() {
+        // Notify lobby model that we're leaving
+        if (session && session.view && myPlayerId) {
+          session.view.publish(myPlayerId, 'PLAYER_LEAVE_LOBBY', {
+            playerId: myPlayerId
+          });
+        }
+        
+        if (session && session.view) {
+          session.view.detach();
+        }
+        
+        // Reset state
+        session = null;
+        lobbyModel = null;
+        myPlayerId = null;
+        isHost = false;
+        
+        // Reset UI
+        sessionSetup.classList.remove('hidden');
+        sessionInfo.classList.add('hidden');
+        players.clear();
+        playersListDiv.innerHTML = '';
+        
+        updateStatus('Ready to connect', 'disconnected');
+      }
+      
+      // Copy invite link
+      function copyInviteLink() {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+          const originalText = copyUrlBtn.textContent;
+          copyUrlBtn.textContent = '✅ Copied!';
+          setTimeout(() => {
+            copyUrlBtn.textContent = originalText;
+          }, 2000);
+        });
+      }
+    </script>
   </body>
 </html>
