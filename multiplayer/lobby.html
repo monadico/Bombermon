@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bomberman Multiplayer Lobby</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            color: white;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .lobby-section {
+            margin-bottom: 30px;
+        }
+
+        .player-list {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .player-item.ready {
+            border-left-color: #FF9800;
+        }
+
+        .player-name {
+            font-weight: bold;
+        }
+
+        .player-status {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            background: #4CAF50;
+        }
+
+        .player-status.ready {
+            background: #FF9800;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .ready-btn {
+            background: linear-gradient(45deg, #FF9800, #F57C00);
+        }
+
+        .start-btn {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+        }
+
+        .game-info {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .room-code {
+            font-family: monospace;
+            font-size: 1.2em;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💣 Bomberman Multiplayer Lobby</h1>
+        
+        <div class="game-info">
+            <h3>Room Code</h3>
+            <div class="room-code" id="roomCode">Loading...</div>
+            <p>Share this code with friends to join your game!</p>
+        </div>
+
+        <div class="lobby-section">
+            <h3>Players (<span id="playerCount">0</span>/4)</h3>
+            <div class="player-list" id="playerList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Connecting to lobby...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="readyBtn" class="ready-btn" onclick="toggleReady()">Ready</button>
+            <button id="startBtn" class="start-btn" onclick="startGame()" disabled>Start Game</button>
+            <button onclick="leaveLobby()">Leave Lobby</button>
+        </div>
+    </div>
+
+
+    <script src="lobby.js"></script>
+</body>
+</html> 
