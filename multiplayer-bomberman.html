@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Bomberman - Pure Canvas + MultiSynq</title>
+    <script src="https://cdn.jsdelivr.net/npm/@multisynq/client@latest/bundled/multisynq-client.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            font-family: 'Courier New', monospace;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        #gameContainer {
+            background: #000;
+            border: 3px solid #333;
+            border-radius: 8px;
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: #000;
+        }
+        
+        #ui {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        #playerList {
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 5px;
+            min-width: 300px;
+        }
+        
+        .player-info {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        
+        .player-local {
+            background: rgba(0, 255, 0, 0.2);
+            border-left: 3px solid #0f0;
+        }
+        
+        .player-remote {
+            background: rgba(255, 255, 0, 0.2);
+            border-left: 3px solid #ff0;
+        }
+        
+        #controls {
+            text-align: center;
+            margin-top: 10px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Multiplayer Bomberman</h1>
+    
+    <div id="ui">
+        <div>Lives: <span id="lives">3</span></div>
+        <div>Bombs: <span id="bombs">1</span></div>
+        <div>Fire Power: <span id="fire">1</span></div>
+        <div id="gameStatus">Initializing...</div>
+    </div>
+    
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="780" height="520"></canvas>
+    </div>
+    
+    <div id="playerList">
+        <div style="font-weight: bold; margin-bottom: 10px;">Players:</div>
+        <div id="players">Waiting for players...</div>
+    </div>
+    
+    <div id="controls">
+        <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Share this URL to play with friends!
+    </div>
+
+    <script>
+        // Game constants - keeping original values
+        const TILE_SIZE = 26;
+        const GAME_WIDTH = 15;
+        const GAME_HEIGHT = 15;
+        const MOVE_SPEED = 130;
+        const BOMB_TIMER = 3000; // 3 seconds in milliseconds
+        const EXPLOSION_DURATION = 1000; // 1 second
+        
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false; // Pixel art style
+        
+        // Game state
+        let sprites = {};
+        let spritesLoaded = 0;
+        const totalSprites = 13;
+        
+        // Load all sprites - keeping original paths and structure
+        function loadSprites() {
+            const spriteList = [
+                { name: 'wall-steel', path: 'sprites/wall-steel.png' },
+                { name: 'brick-red', path: 'sprites/brick-red.png' },
+                { name: 'door', path: 'sprites/door.png' },
+                { name: 'kaboom', path: 'sprites/kaboom.png' },
+                { name: 'bg', path: 'sprites/bg.png' },
+                { name: 'wall-gold', path: 'sprites/wall-gold.png' },
+                { name: 'brick-wood', path: 'sprites/brick-wood.png' },
+                { name: 'bomberman', path: 'images/bombermon.png' },
+                { name: 'bomb', path: 'sprites/bomb.png' },
+                { name: 'explosion', path: 'sprites/explosion.png' },
+                { name: 'powerup-bomb', path: 'sprites/powerup-bomb.png' },
+                { name: 'powerup-fire', path: 'sprites/powerup-fire.png' },
+                { name: 'powerup-speed', path: 'sprites/powerup-speed.png' }
+            ];
+            
+            spriteList.forEach(sprite => {
+                const img = new Image();
+                img.onload = () => {
+                    sprites[sprite.name] = img;
+                    spritesLoaded++;
+                    console.log(`Loaded sprite: ${sprite.name} (${spritesLoaded}/${totalSprites})`);
+                    
+                    if (spritesLoaded === totalSprites) {
+                        console.log('All sprites loaded!');
+                        startGame();
+                    }
+                };
+                img.onerror = () => {
+                    console.warn(`Failed to load sprite: ${sprite.name}`);
+                    spritesLoaded++;
+                    if (spritesLoaded === totalSprites) {
+                        startGame();
+                    }
+                };
+                img.src = sprite.path;
+            });
+        }
+        
+        // Animation frame data for Bomberman sprite (7x4 grid)
+        const animations = {
+            idleUp: { row: 0, frames: [0] },
+            moveUp: { row: 0, frames: [1, 2, 3, 4, 5, 6] },
+            idleRight: { row: 1, frames: [0] },
+            moveRight: { row: 1, frames: [1, 2, 3, 4, 5, 6] },
+            idleDown: { row: 2, frames: [0] },
+            moveDown: { row: 2, frames: [1, 2, 3, 4, 5, 6] },
+            idleLeft: { row: 3, frames: [0] },
+            moveLeft: { row: 3, frames: [1, 2, 3, 4, 5, 6] }
+        };
+        
+        // Original level map - exactly as in singleplayer
+        const LEVEL_MAP = [
+            'aaaaaaaaaaaaaaa',
+            'a @ z z z z z a',
+            'a z a z a z a a',
+            'a z z z z z z a', 
+            'a z a z a z a a',
+            'a z z z z z z a',
+            'a z a z a z a a',
+            'a z z z z z z a',
+            'a z a z a z a a',
+            'a z z z z z z a',
+            'a z a z a z a a',
+            'a z z z & z z a',
+            'a z a z a z a a',
+            'a $ z z * z # a',
+            'aaaaaaaaaaaaaaa',
+        ];
+        
+        // MultiSynq Models
+        class GameModel extends Multisynq.Model {
+            init() {
+                this.players = new Map();
+                this.bombs = new Set();
+                this.explosions = new Set();
+                this.powerUps = new Set();
+                this.gameStarted = false;
+                this.gameOver = false;
+                this.winner = null;
+                
+                // Initialize destructible blocks
+                this.destructibleBlocks = new Set();
+                LEVEL_MAP.forEach((row, y) => {
+                    row.split('').forEach((cell, x) => {
+                        if (cell === 'z') {
+                            this.destructibleBlocks.add(`${x},${y}`);
+                        }
+                    });
+                });
+                
+                // Subscribe to events
+                this.subscribe(this.sessionId, "view-join", this.playerJoined);
+                this.subscribe(this.sessionId, "view-exit", this.playerExited);
+                this.subscribe(this.sessionId, "restart-game", this.restartGame);
+                
+                // Start main loop
+                this.mainLoop();
+            }
+            
+            playerJoined(viewInfo) {
+                // Handle different viewInfo formats - sometimes it's just the viewId string
+                const viewId = typeof viewInfo === 'string' ? viewInfo : (viewInfo.viewId || viewInfo);
+                
+                if (!viewId) {
+                    console.error('Invalid viewInfo received:', viewInfo);
+                    return;
+                }
+                
+                const playerId = this.players.size;
+                
+                // Spawn positions - exactly as original
+                const spawnPositions = [
+                    { x: TILE_SIZE, y: TILE_SIZE },
+                    { x: TILE_SIZE * 13, y: TILE_SIZE },
+                    { x: TILE_SIZE, y: TILE_SIZE * 13 },
+                    { x: TILE_SIZE * 13, y: TILE_SIZE * 13 }
+                ];
+                
+                console.log(`Creating player ${playerId} with viewId: ${viewId}`);
+                
+                try {
+                    const player = PlayerModel.create({
+                        viewId: viewId,
+                        playerId: playerId,
+                        position: spawnPositions[playerId % 4]
+                    });
+                    
+                    this.players.set(viewId, player);
+                    console.log(`Player ${playerId} added successfully. Total players: ${this.players.size}`);
+                } catch (error) {
+                    console.error('Failed to create player:', error);
+                    return; // Don't continue if player creation failed
+                }
+                
+                if (this.players.size >= 2 && !this.gameStarted) {
+                    this.gameStarted = true;
+                    this.publish(this.sessionId, "game-started", {});
+                }
+                
+                this.updatePlayerList();
+            }
+            
+            playerExited(viewInfo) {
+                // Handle different viewInfo formats
+                const viewId = typeof viewInfo === 'string' ? viewInfo : (viewInfo.viewId || viewInfo);
+                
+                if (!viewId) {
+                    console.error('Invalid viewInfo received on exit:', viewInfo);
+                    return;
+                }
+                
+                const player = this.players.get(viewId);
+                if (player) {
+                    player.destroy();
+                    this.players.delete(viewId);
+                    this.updatePlayerList();
+                }
+            }
+            
+            updatePlayerList() {
+                const playerData = Array.from(this.players.values()).map(p => ({
+                    viewId: p.viewId,
+                    playerId: p.playerId,
+                    lives: p.lives,
+                    isAlive: p.isAlive
+                }));
+                this.publish(this.sessionId, "player-list-updated", { players: playerData });
+            }
+            
+            restartGame() {
+                this.gameOver = false;
+                this.gameStarted = false;
+                this.winner = null;
+                this.bombs.clear();
+                this.explosions.clear();
+                this.powerUps.clear();
+                
+                // Reset destructible blocks
+                this.destructibleBlocks.clear();
+                LEVEL_MAP.forEach((row, y) => {
+                    row.split('').forEach((cell, x) => {
+                        if (cell === 'z') {
+                            this.destructibleBlocks.add(`${x},${y}`);
+                        }
+                    });
+                });
+                
+                // Reset players
+                const spawnPositions = [
+                    { x: TILE_SIZE, y: TILE_SIZE },
+                    { x: TILE_SIZE * 13, y: TILE_SIZE },
+                    { x: TILE_SIZE, y: TILE_SIZE * 13 },
+                    { x: TILE_SIZE * 13, y: TILE_SIZE * 13 }
+                ];
+                
+                let playerIndex = 0;
+                for (const player of this.players.values()) {
+                    player.reset(spawnPositions[playerIndex % 4]);
+                    playerIndex++;
+                }
+                
+                if (this.players.size >= 2) {
+                    this.gameStarted = true;
+                    this.publish(this.sessionId, "game-started", {});
+                }
+                
+                this.updatePlayerList();
+            }
+            
+            mainLoop() {
+                if (!this.gameOver && this.gameStarted) {
+                    // Update all entities
+                    for (const player of this.players.values()) {
+                        player.update();
+                    }
+                    
+                    for (const bomb of this.bombs) {
+                        bomb.update();
+                    }
+                    
+                    for (const explosion of this.explosions) {
+                        explosion.update();
+                    }
+                    
+                    // Check win condition
+                    this.checkWinCondition();
+                }
+                
+                this.future(16).mainLoop(); // ~60fps
+            }
+            
+            checkWinCondition() {
+                const alivePlayers = Array.from(this.players.values()).filter(p => p.isAlive);
+                
+                if (alivePlayers.length <= 1 && this.players.size > 1) {
+                    this.gameOver = true;
+                    this.winner = alivePlayers.length === 1 ? alivePlayers[0].viewId : null;
+                    const winnerName = this.winner ? `Player ${alivePlayers[0].playerId + 1}` : "Draw";
+                    this.publish(this.sessionId, "game-over", { winner: this.winner, winnerName });
+                }
+            }
+            
+            isValidPosition(pos, excludePlayer = null) {
+                const gridX = Math.round(pos.x / TILE_SIZE);
+                const gridY = Math.round(pos.y / TILE_SIZE);
+                
+                if (gridX < 0 || gridY < 0 || gridX >= GAME_WIDTH || gridY >= GAME_HEIGHT) {
+                    return false;
+                }
+                
+                const cell = LEVEL_MAP[gridY].charAt(gridX);
+                if (cell === 'a') return false; // Steel wall
+                if (cell === 'z' && this.destructibleBlocks.has(`${gridX},${gridY}`)) {
+                    return false; // Brick wall
+                }
+                
+                // Check for bombs
+                for (const bomb of this.bombs) {
+                    if (Math.abs(bomb.pos.x - pos.x) < TILE_SIZE/2 && 
+                        Math.abs(bomb.pos.y - pos.y) < TILE_SIZE/2) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            }
+            
+            snapToGrid(pos) {
+                return {
+                    x: Math.round(pos.x / TILE_SIZE) * TILE_SIZE,
+                    y: Math.round(pos.y / TILE_SIZE) * TILE_SIZE
+                };
+            }
+        }
+        GameModel.register("GameModel");
+        
+        class PlayerModel extends Multisynq.Model {
+            init({ viewId, playerId, position }) {
+                // Validate input parameters
+                if (!viewId || typeof viewId !== 'string') {
+                    console.error('PlayerModel: Invalid viewId provided:', viewId);
+                    throw new Error('PlayerModel requires valid viewId');
+                }
+                
+                if (playerId === undefined || playerId === null) {
+                    console.error('PlayerModel: Invalid playerId provided:', playerId);
+                    throw new Error('PlayerModel requires valid playerId');
+                }
+                
+                if (!position || typeof position.x !== 'number' || typeof position.y !== 'number') {
+                    console.error('PlayerModel: Invalid position provided:', position);
+                    throw new Error('PlayerModel requires valid position');
+                }
+                
+                this.viewId = viewId;
+                this.playerId = playerId;
+                this.pos = position;
+                this.lives = 3;
+                this.bombCount = 1;
+                this.firePower = 1;
+                this.isAlive = true;
+                this.isMoving = false;
+                this.targetPos = null;
+                this.lastDirection = 'down';
+                this.currentAnimation = 'idleDown';
+                this.animationFrame = 0;
+                this.animationTimer = 0;
+                this.moveProgress = 0;
+                this.lastMoveTime = 0;
+                this.lastBombTime = 0;
+                
+                // Subscribe to player-specific events
+                try {
+                    this.subscribe(viewId, "move", this.handleMove);
+                    this.subscribe(viewId, "place-bomb", this.placeBomb);
+                    console.log(`Player ${playerId} (${viewId}) initialized successfully`);
+                } catch (error) {
+                    console.error('Failed to subscribe to player events:', error);
+                    throw error;
+                }
+            }
+            
+            get game() {
+                return this.wellKnownModel("modelRoot");
+            }
+            
+            reset(position) {
+                this.pos = position;
+                this.lives = 3;
+                this.bombCount = 1;
+                this.firePower = 1;
+                this.isAlive = true;
+                this.isMoving = false;
+                this.targetPos = null;
+                this.lastDirection = 'down';
+                this.currentAnimation = 'idleDown';
+                this.moveProgress = 0;
+            }
+            
+            handleMove(data) {
+                if (!this.isAlive || this.isMoving || this.game.gameOver) return;
+                
+                const { direction } = data;
+                const now = this.now();
+                
+                if (now - this.lastMoveTime < 160) return; // Rate limiting
+                
+                const targetPos = this.calculateTargetPosition(direction);
+                
+                if (this.game.isValidPosition(targetPos, this)) {
+                    this.startMovement(direction, targetPos);
+                    this.lastMoveTime = now;
+                }
+            }
+            
+            calculateTargetPosition(direction) {
+                switch(direction) {
+                    case 'left': return { x: this.pos.x - TILE_SIZE, y: this.pos.y };
+                    case 'right': return { x: this.pos.x + TILE_SIZE, y: this.pos.y };
+                    case 'up': return { x: this.pos.x, y: this.pos.y - TILE_SIZE };
+                    case 'down': return { x: this.pos.x, y: this.pos.y + TILE_SIZE };
+                    default: return this.pos;
+                }
+            }
+            
+            startMovement(direction, targetPos) {
+                this.isMoving = true;
+                this.targetPos = targetPos;
+                this.lastDirection = direction;
+                this.currentAnimation = `move${direction.charAt(0).toUpperCase() + direction.slice(1)}`;
+                this.moveProgress = 0;
+                this.interpolateMovement();
+            }
+            
+            interpolateMovement() {
+                if (!this.isMoving) return;
+                
+                this.moveProgress += 0.15;
+                
+                if (this.moveProgress >= 1.0) {
+                    this.pos = this.targetPos;
+                    this.isMoving = false;
+                    this.moveProgress = 0;
+                    this.currentAnimation = `idle${this.lastDirection.charAt(0).toUpperCase() + this.lastDirection.slice(1)}`;
+                } else {
+                    this.future(16).interpolateMovement();
+                }
+            }
+            
+            getCurrentPosition() {
+                if (!this.isMoving || !this.targetPos) return this.pos;
+                
+                return {
+                    x: this.pos.x + (this.targetPos.x - this.pos.x) * this.moveProgress,
+                    y: this.pos.y + (this.targetPos.y - this.pos.y) * this.moveProgress
+                };
+            }
+            
+            placeBomb() {
+                if (!this.isAlive || this.game.gameOver) return;
+                
+                const now = this.now();
+                if (now - this.lastBombTime < 500) return;
+                
+                const bombPos = this.game.snapToGrid(this.pos);
+                
+                // Check if bomb already exists at position
+                for (const bomb of this.game.bombs) {
+                    if (Math.abs(bomb.pos.x - bombPos.x) < TILE_SIZE/2 && 
+                        Math.abs(bomb.pos.y - bombPos.y) < TILE_SIZE/2) {
+                        return;
+                    }
+                }
+                
+                BombModel.create({
+                    position: bombPos,
+                    owner: this,
+                    firePower: this.firePower
+                });
+                
+                this.lastBombTime = now;
+            }
+            
+            takeDamage() {
+                if (!this.isAlive) return;
+                
+                this.lives--;
+                
+                if (this.lives <= 0) {
+                    this.isAlive = false;
+                } else {
+                    // Respawn at spawn position
+                    const spawnPositions = [
+                        { x: TILE_SIZE, y: TILE_SIZE },
+                        { x: TILE_SIZE * 13, y: TILE_SIZE },
+                        { x: TILE_SIZE, y: TILE_SIZE * 13 },
+                        { x: TILE_SIZE * 13, y: TILE_SIZE * 13 }
+                    ];
+                    this.pos = spawnPositions[this.playerId % 4];
+                    this.isMoving = false;
+                    this.targetPos = null;
+                }
+                
+                this.publish(this.viewId, "player-damaged", {
+                    lives: this.lives,
+                    isAlive: this.isAlive
+                });
+            }
+            
+            update() {
+                // Update animation
+                this.animationTimer += 16;
+                if (this.animationTimer > 150) { // Animation speed
+                    this.animationTimer = 0;
+                    const animData = animations[this.currentAnimation];
+                    if (animData && animData.frames.length > 1) {
+                        this.animationFrame = (this.animationFrame + 1) % animData.frames.length;
+                    }
+                }
+                
+                // Check for power-up collection
+                this.checkPowerUpCollection();
+            }
+            
+            checkPowerUpCollection() {
+                if (!this.isAlive) return;
+                
+                const currentPos = this.getCurrentPosition();
+                
+                for (const powerUp of this.game.powerUps) {
+                    if (Math.abs(currentPos.x - powerUp.pos.x) < TILE_SIZE * 0.8 &&
+                        Math.abs(currentPos.y - powerUp.pos.y) < TILE_SIZE * 0.8) {
+                        powerUp.collect(this);
+                        break;
+                    }
+                }
+            }
+        }
+        PlayerModel.register("PlayerModel");
+        
+        class BombModel extends Multisynq.Model {
+            init({ position, owner, firePower }) {
+                this.pos = position;
+                this.owner = owner;
+                this.firePower = firePower;
+                this.timer = BOMB_TIMER;
+                this.animationFrame = 0;
+                this.animationTimer = 0;
+                
+                this.game.bombs.add(this);
+                this.countdown();
+            }
+            
+            get game() {
+                return this.wellKnownModel("modelRoot");
+            }
+            
+            countdown() {
+                this.timer -= 100;
+                
+                if (this.timer <= 0) {
+                    this.explode();
+                } else {
+                    this.future(100).countdown();
+                }
+            }
+            
+            explode() {
+                this.game.bombs.delete(this);
+                
+                const explosionPositions = this.calculateExplosionPattern();
+                
+                for (const pos of explosionPositions) {
+                    ExplosionModel.create({ position: pos });
+                    
+                    // Destroy bricks
+                    const gridX = Math.round(pos.x / TILE_SIZE);
+                    const gridY = Math.round(pos.y / TILE_SIZE);
+                    const blockKey = `${gridX},${gridY}`;
+                    
+                    if (this.game.destructibleBlocks.has(blockKey)) {
+                        this.game.destructibleBlocks.delete(blockKey);
+                        
+                        // Spawn power-up chance
+                        if (this.random() < 0.3) {
+                            PowerUpModel.create({ position: pos });
+                        }
+                    }
+                    
+                    // Damage players
+                    for (const player of this.game.players.values()) {
+                        const playerPos = player.getCurrentPosition();
+                        if (Math.abs(playerPos.x - pos.x) < TILE_SIZE/2 &&
+                            Math.abs(playerPos.y - pos.y) < TILE_SIZE/2) {
+                            player.takeDamage();
+                        }
+                    }
+                }
+                
+                this.destroy();
+            }
+            
+            calculateExplosionPattern() {
+                const positions = [this.pos];
+                const directions = [
+                    { x: 0, y: -1 }, // up
+                    { x: 0, y: 1 },  // down
+                    { x: -1, y: 0 }, // left
+                    { x: 1, y: 0 }   // right
+                ];
+                
+                directions.forEach(dir => {
+                    for (let i = 1; i <= this.firePower; i++) {
+                        const explosionPos = {
+                            x: this.pos.x + (dir.x * TILE_SIZE * i),
+                            y: this.pos.y + (dir.y * TILE_SIZE * i)
+                        };
+                        
+                        const gridX = Math.round(explosionPos.x / TILE_SIZE);
+                        const gridY = Math.round(explosionPos.y / TILE_SIZE);
+                        
+                        if (gridX < 0 || gridY < 0 || gridX >= GAME_WIDTH || gridY >= GAME_HEIGHT) {
+                            break;
+                        }
+                        
+                        const cell = LEVEL_MAP[gridY].charAt(gridX);
+                        
+                        if (cell === 'a') break; // Steel wall stops explosion
+                        
+                        positions.push(explosionPos);
+                        
+                        if (cell === 'z' && this.game.destructibleBlocks.has(`${gridX},${gridY}`)) {
+                            break; // Brick wall stops explosion after being destroyed
+                        }
+                    }
+                });
+                
+                return positions;
+            }
+            
+            update() {
+                this.animationTimer += 16;
+                if (this.animationTimer > 200) {
+                    this.animationTimer = 0;
+                    this.animationFrame = (this.animationFrame + 1) % 3;
+                }
+            }
+        }
+        BombModel.register("BombModel");
+        
+        class ExplosionModel extends Multisynq.Model {
+            init({ position }) {
+                this.pos = position;
+                this.duration = EXPLOSION_DURATION;
+                this.timeLeft = this.duration;
+                
+                this.game.explosions.add(this);
+                this.countdown();
+            }
+            
+            get game() {
+                return this.wellKnownModel("modelRoot");
+            }
+            
+            countdown() {
+                this.timeLeft -= 100;
+                
+                if (this.timeLeft <= 0) {
+                    this.game.explosions.delete(this);
+                    this.destroy();
+                } else {
+                    this.future(100).countdown();
+                }
+            }
+            
+            update() {
+                // Explosion updates
+            }
+        }
+        ExplosionModel.register("ExplosionModel");
+        
+        class PowerUpModel extends Multisynq.Model {
+            init({ position }) {
+                this.pos = position;
+                const types = ['bomb', 'fire', 'speed'];
+                this.type = types[Math.floor(this.random() * types.length)];
+                
+                this.game.powerUps.add(this);
+            }
+            
+            get game() {
+                return this.wellKnownModel("modelRoot");
+            }
+            
+            collect(player) {
+                switch(this.type) {
+                    case 'bomb':
+                        player.bombCount++;
+                        break;
+                    case 'fire':
+                        player.firePower++;
+                        break;
+                    case 'speed':
+                        // Speed implementation
+                        break;
+                }
+                
+                player.publish(player.viewId, "powerup-collected", {
+                    type: this.type,
+                    bombCount: player.bombCount,
+                    firePower: player.firePower
+                });
+                
+                this.game.powerUps.delete(this);
+                this.destroy();
+            }
+        }
+        PowerUpModel.register("PowerUpModel");
+        
+        // View class for rendering
+        class GameView extends Multisynq.View {
+            constructor(model) {
+                super(model);
+                this.model = model;
+                this.setupInput();
+                this.setupUI();
+                
+                this.subscribe(this.sessionId, "game-started", this.onGameStarted);
+                this.subscribe(this.sessionId, "game-over", this.onGameOver);
+                this.subscribe(this.sessionId, "player-list-updated", this.onPlayerListUpdated);
+                this.subscribe(this.viewId, "player-damaged", this.onPlayerDamaged);
+                this.subscribe(this.viewId, "powerup-collected", this.onPowerUpCollected);
+                
+                this.render();
+            }
+            
+            setupInput() {
+                document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+                document.addEventListener('keyup', (e) => this.handleKeyUp(e));
+                
+                this.pressedKeys = new Set();
+            }
+            
+            handleKeyDown(e) {
+                if (e.repeat) return;
+                
+                this.pressedKeys.add(e.code);
+                
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    if (this.model.gameOver) {
+                        this.publish(this.sessionId, "restart-game", {});
+                    } else {
+                        this.publish(this.viewId, "place-bomb", {});
+                    }
+                }
+            }
+            
+            handleKeyUp(e) {
+                this.pressedKeys.delete(e.code);
+            }
+            
+            publishMove(direction) {
+                if (!this.model.gameOver) {
+                    this.publish(this.viewId, "move", { direction });
+                }
+            }
+            
+            setupUI() {
+                this.livesEl = document.getElementById('lives');
+                this.bombsEl = document.getElementById('bombs');
+                this.fireEl = document.getElementById('fire');
+                this.gameStatusEl = document.getElementById('gameStatus');
+                this.playersEl = document.getElementById('players');
+            }
+            
+            onGameStarted() {
+                this.gameStatusEl.textContent = 'Game Started! Fight!';
+            }
+            
+            onGameOver(data) {
+                this.gameStatusEl.textContent = `Game Over! Winner: ${data.winnerName} - Press SPACE to restart`;
+            }
+            
+            onPlayerListUpdated(data) {
+                this.updatePlayerList(data.players);
+            }
+            
+            onPlayerDamaged(data) {
+                this.livesEl.textContent = data.lives;
+            }
+            
+            onPowerUpCollected(data) {
+                this.bombsEl.textContent = data.bombCount;
+                this.fireEl.textContent = data.firePower;
+            }
+            
+            updatePlayerList(players) {
+                this.playersEl.innerHTML = '';
+                players.forEach(player => {
+                    const div = document.createElement('div');
+                    div.className = player.viewId === this.viewId ? 'player-info player-local' : 'player-info player-remote';
+                    div.innerHTML = `
+                        Player ${player.playerId + 1} 
+                        ${player.viewId === this.viewId ? '(You)' : ''}
+                        <br>Lives: ${player.lives}
+                        ${!player.isAlive ? ' (Dead)' : ''}
+                    `;
+                    this.playersEl.appendChild(div);
+                });
+            }
+            
+            update() {
+                // Handle continuous movement
+                if (this.pressedKeys.has('ArrowLeft') || this.pressedKeys.has('KeyA')) {
+                    this.publishMove('left');
+                }
+                if (this.pressedKeys.has('ArrowRight') || this.pressedKeys.has('KeyD')) {
+                    this.publishMove('right');
+                }
+                if (this.pressedKeys.has('ArrowUp') || this.pressedKeys.has('KeyW')) {
+                    this.publishMove('up');
+                }
+                if (this.pressedKeys.has('ArrowDown') || this.pressedKeys.has('KeyS')) {
+                    this.publishMove('down');
+                }
+                
+                // Update local player UI
+                const localPlayer = this.model.players.get(this.viewId);
+                if (localPlayer) {
+                    this.livesEl.textContent = localPlayer.lives;
+                    this.bombsEl.textContent = localPlayer.bombCount;
+                    this.fireEl.textContent = localPlayer.firePower;
+                }
+                
+                this.render();
+            }
+            
+            render() {
+                // Clear canvas
+                ctx.fillStyle = '#0a1a0a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Render background
+                if (sprites.bg) {
+                    ctx.drawImage(sprites.bg, 0, 0, canvas.width, canvas.height);
+                }
+                
+                // Render map
+                this.renderMap();
+                
+                // Render power-ups
+                this.renderPowerUps();
+                
+                // Render bombs
+                this.renderBombs();
+                
+                // Render explosions
+                this.renderExplosions();
+                
+                // Render players
+                this.renderPlayers();
+            }
+            
+            renderMap() {
+                LEVEL_MAP.forEach((row, y) => {
+                    row.split('').forEach((cell, x) => {
+                        const posX = x * TILE_SIZE;
+                        const posY = y * TILE_SIZE;
+                        
+                        if (cell === 'a') {
+                            // Steel wall
+                            if (sprites['wall-steel']) {
+                                ctx.drawImage(sprites['wall-steel'], posX, posY, TILE_SIZE, TILE_SIZE);
+                            } else {
+                                ctx.fillStyle = '#666';
+                                ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE);
+                            }
+                        } else if (cell === 'z' && this.model.destructibleBlocks.has(`${x},${y}`)) {
+                            // Destructible brick
+                            if (sprites['brick-red']) {
+                                ctx.drawImage(sprites['brick-red'], posX, posY, TILE_SIZE, TILE_SIZE);
+                            } else {
+                                ctx.fillStyle = '#a52a2a';
+                                ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE);
+                            }
+                        }
+                    });
+                });
+            }
+            
+            renderPowerUps() {
+                for (const powerUp of this.model.powerUps) {
+                    const spriteName = `powerup-${powerUp.type}`;
+                    if (sprites[spriteName]) {
+                        ctx.drawImage(sprites[spriteName], powerUp.pos.x, powerUp.pos.y, TILE_SIZE, TILE_SIZE);
+                    } else {
+                        // Fallback
+                        ctx.fillStyle = powerUp.type === 'bomb' ? '#ff0' : powerUp.type === 'fire' ? '#f80' : '#0f0';
+                        ctx.fillRect(powerUp.pos.x + 4, powerUp.pos.y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                    }
+                }
+            }
+            
+            renderBombs() {
+                for (const bomb of this.model.bombs) {
+                    if (sprites.bomb) {
+                        // Simple bomb rendering - could add animation frames here
+                        ctx.drawImage(sprites.bomb, bomb.pos.x, bomb.pos.y, TILE_SIZE, TILE_SIZE);
+                    } else {
+                        ctx.fillStyle = '#222';
+                        ctx.beginPath();
+                        ctx.arc(bomb.pos.x + TILE_SIZE/2, bomb.pos.y + TILE_SIZE/2, TILE_SIZE/3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+            
+            renderExplosions() {
+                for (const explosion of this.model.explosions) {
+                    if (sprites.explosion) {
+                        ctx.drawImage(sprites.explosion, explosion.pos.x, explosion.pos.y, TILE_SIZE, TILE_SIZE);
+                    } else {
+                        ctx.fillStyle = 'rgba(255, 165, 0, 0.8)';
+                        ctx.fillRect(explosion.pos.x, explosion.pos.y, TILE_SIZE, TILE_SIZE);
+                    }
+                }
+            }
+            
+            renderPlayers() {
+                for (const player of this.model.players.values()) {
+                    if (!player.isAlive) continue;
+                    
+                    const currentPos = player.getCurrentPosition();
+                    
+                    if (sprites.bomberman) {
+                        // Calculate sprite frame
+                        const animData = animations[player.currentAnimation];
+                        const frameIndex = animData.frames[player.animationFrame % animData.frames.length];
+                        const spriteWidth = sprites.bomberman.width / 7; // 7 columns
+                        const spriteHeight = sprites.bomberman.height / 4; // 4 rows
+                        
+                        const srcX = frameIndex * spriteWidth;
+                        const srcY = animData.row * spriteHeight;
+                        
+                        ctx.drawImage(
+                            sprites.bomberman,
+                            srcX, srcY, spriteWidth, spriteHeight,
+                            currentPos.x, currentPos.y, TILE_SIZE, TILE_SIZE
+                        );
+                    } else {
+                        // Fallback colored rectangles
+                        const colors = ['#fff', '#ff0', '#0ff', '#f0f'];
+                        ctx.fillStyle = colors[player.playerId % 4];
+                        ctx.fillRect(currentPos.x + 2, currentPos.y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                    }
+                    
+                    // Highlight local player
+                    if (player.viewId === this.viewId) {
+                        ctx.strokeStyle = '#0f0';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(currentPos.x - 2, currentPos.y - 2, TILE_SIZE + 4, TILE_SIZE + 4);
+                    }
+                }
+            }
+        }
+        
+        // Start the game
+        function startGame() {
+            document.getElementById('gameStatus').textContent = 'Connecting to MultiSynq...';
+            
+            // Join MultiSynq session with auto-generated session info
+            Multisynq.Session.join({
+                apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
+                appId: 'io.multisynq.bomberman-canvas',
+                model: GameModel,
+                view: GameView,
+                name: window.location.hash.slice(1) || Multisynq.App.autoSession("bomberman"),
+                password: Multisynq.App.autoPassword(),
+                step: "auto"
+            }).then(session => {
+                console.log('MultiSynq session joined successfully!');
+                console.log('Session ID:', session.id);
+                
+                document.getElementById('gameStatus').textContent = `Connected! Share URL to play with friends`;
+                
+                // Update URL for sharing
+                if (!window.location.hash) {
+                    window.location.hash = session.id;
+                }
+                
+                // Share URL
+                const shareUrl = `${window.location.origin}${window.location.pathname}#${session.id}`;
+                console.log('🎮 Share this URL with friends to play together:', shareUrl);
+                
+                // Add click to copy URL functionality
+                document.addEventListener('click', () => {
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(shareUrl).then(() => {
+                            console.log('URL copied to clipboard!');
+                        }).catch(() => {
+                            console.log('Could not copy URL');
+                        });
+                    }
+                });
+                
+            }).catch(error => {
+                console.error('Failed to join MultiSynq session:', error);
+                console.error('Error details:', error.message);
+                
+                if (error.message && error.message.includes('password')) {
+                    document.getElementById('gameStatus').textContent = 'Session password error. Trying alternative...';
+                    
+                    // Try without any session name/password
+                    setTimeout(() => {
+                        trySimpleSession();
+                    }, 2000);
+                } else {
+                    document.getElementById('gameStatus').textContent = 'Failed to connect. Check console for details.';
+                }
+            });
+        }
+        
+        // Fallback session approach
+        function trySimpleSession() {
+            console.log('Trying simple session without password...');
+            
+            Multisynq.Session.join({
+                apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
+                appId: 'io.multisynq.bomberman-simple',
+                model: GameModel,
+                view: GameView,
+                step: "auto"
+            }).then(session => {
+                console.log('Simple session joined successfully!');
+                console.log('Session ID:', session.id);
+                
+                document.getElementById('gameStatus').textContent = `Connected! Share URL to play`;
+                
+                const shareUrl = `${window.location.origin}${window.location.pathname}#${session.id}`;
+                console.log('🎮 Share this URL:', shareUrl);
+                
+                if (!window.location.hash) {
+                    window.location.hash = session.id;
+                }
+                
+            }).catch(error => {
+                console.error('Simple session also failed:', error);
+                document.getElementById('gameStatus').textContent = 'Connection failed. Game will run in single-player mode.';
+                
+                // Could add offline mode here
+                console.log('You can still play the game locally, but multiplayer features won\'t work.');
+            });
+        }
+        
+        // Initialize
+        document.getElementById('gameStatus').textContent = 'Loading sprites...';
+        loadSprites();
+    </script>
+</body>
+</html> 
