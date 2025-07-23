@@ -8,13 +8,27 @@
     <style>
         body {
             margin: 0;
-            padding: 20px;
+            padding: 0;
             background: #1a1a1a;
             font-family: 'Courier New', monospace;
             color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #gameWrapper {
             display: flex;
             flex-direction: column;
             align-items: center;
+            height: 100vh;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        h1 {
+            margin: 10px 0;
+            font-size: 28px;
+            flex-shrink: 0;
         }
         
         #gameContainer {
@@ -22,19 +36,33 @@
             border: 3px solid #333;
             border-radius: 8px;
             position: relative;
-            margin-bottom: 20px;
+            margin: 10px 0;
+            /* Responsive container */
+            width: 100%;
+            max-width: 1200px;
+            aspect-ratio: 16/9;
+            flex: 1;
         }
         
         #gameCanvas {
             display: block;
             background: #000;
+            width: 100%;
+            height: 100%;
+            /* Maintain pixel-perfect scaling */
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
         }
         
         #ui {
             display: flex;
             gap: 20px;
-            margin-bottom: 10px;
+            margin: 10px 0;
             font-size: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+            flex-shrink: 0;
         }
         
         #playerList {
@@ -42,6 +70,8 @@
             padding: 15px;
             border-radius: 5px;
             min-width: 300px;
+            max-width: 100%;
+            flex-shrink: 0;
         }
         
         .player-info {
@@ -62,39 +92,73 @@
         
         #controls {
             text-align: center;
-            margin-top: 10px;
+            margin: 10px 0;
             opacity: 0.7;
+            max-width: 100%;
+            padding: 0 20px;
+            flex-shrink: 0;
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
+            
+            #ui {
+                font-size: 14px;
+                gap: 10px;
+                margin: 5px 0;
+            }
+            
+            #playerList {
+                min-width: 250px;
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 20px;
+                margin: 5px 0;
+            }
+            
+            #controls {
+                margin: 5px 0;
+                padding: 0 10px;
+                font-size: 12px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>🎮 Multiplayer Bomberman</h1>
-    
-    <div id="ui">
-        <div>Lives: <span id="lives">3</span></div>
-        <div>Bombs: <span id="bombs">1</span></div>
-        <div>Fire Power: <span id="fire">1</span></div>
-        <div id="gameStatus">Initializing...</div>
-    </div>
-    
-    <div id="gameContainer">
-        <canvas id="gameCanvas" width="780" height="520"></canvas>
-    </div>
-    
-    <div id="playerList">
-        <div style="font-weight: bold; margin-bottom: 10px;">Players:</div>
-        <div id="players">Waiting for players...</div>
-    </div>
-    
-    <div id="controls">
-        <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Share this URL to play with friends!
+    <div id="gameWrapper">
+        <h1>🎮 Multiplayer Bomberman</h1>
+        
+        <div id="ui">
+            <div>Lives: <span id="lives">3</span></div>
+            <div>Bombs: <span id="bombs">1</span></div>
+            <div>Fire Power: <span id="fire">1</span></div>
+            <div id="gameStatus">Initializing...</div>
+        </div>
+        
+        <div id="gameContainer">
+            <canvas id="gameCanvas" width="1280" height="720"></canvas>
+        </div>
+        
+        <div id="playerList">
+            <div style="font-weight: bold; margin-bottom: 10px;">Players:</div>
+            <div id="players">Waiting for players...</div>
+        </div>
+        
+        <div id="controls">
+            <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Share this URL to play with friends!
+        </div>
     </div>
 
     <script>
-        // Game constants - keeping original values
-        const TILE_SIZE = 26;
-        const GAME_WIDTH = 15;
-        const GAME_HEIGHT = 15;
+        // Game constants - optimized for 16:9 resolution
+        const TILE_SIZE = 32; // Slightly larger tiles for better visibility
+        const GAME_WIDTH = 20; // Wider grid for 16:9
+        const GAME_HEIGHT = 15; // Keep height the same
         const MOVE_SPEED = 130;
         const BOMB_TIMER = 3000; // 3 seconds in milliseconds
         const EXPLOSION_DURATION = 1000; // 1 second
@@ -162,23 +226,23 @@
             moveLeft: { row: 3, frames: [1, 2, 3, 4, 5, 6] }
         };
         
-        // Original level map - exactly as in singleplayer
+        // 16:9 optimized level map (20x15 tiles)
         const LEVEL_MAP = [
-            'aaaaaaaaaaaaaaa',
-            'a @ z z z z z a',
-            'a z a z a z a a',
-            'a z z z z z z a', 
-            'a z a z a z a a',
-            'a z z z z z z a',
-            'a z a z a z a a',
-            'a z z z z z z a',
-            'a z a z a z a a',
-            'a z z z z z z a',
-            'a z a z a z a a',
-            'a z z z & z z a',
-            'a z a z a z a a',
-            'a $ z z * z # a',
-            'aaaaaaaaaaaaaaa',
+            'aaaaaaaaaaaaaaaaaaaa',
+            'a @ z z z z z z z z a',
+            'a z a z a z a z a z a',
+            'a z z z z z z z z z a', 
+            'a z a z a z a z a z a',
+            'a z z z z z z z z z a',
+            'a z a z a z a z a z a',
+            'a z z z z z z z z z a',
+            'a z a z a z a z a z a',
+            'a z z z z z z z z z a',
+            'a z a z a z a z a z a',
+            'a z z z z & z z z z a',
+            'a z a z a z a z a z a',
+            'a $ z z z * z z z # a',
+            'aaaaaaaaaaaaaaaaaaaa',
         ];
         
         // MultiSynq Models
@@ -222,12 +286,12 @@
                 
                 const playerId = this.players.size;
                 
-                // Spawn positions - exactly as original
+                // Spawn positions - optimized for 16:9 map (20x15)
                 const spawnPositions = [
-                    { x: TILE_SIZE, y: TILE_SIZE },
-                    { x: TILE_SIZE * 13, y: TILE_SIZE },
-                    { x: TILE_SIZE, y: TILE_SIZE * 13 },
-                    { x: TILE_SIZE * 13, y: TILE_SIZE * 13 }
+                    { x: TILE_SIZE, y: TILE_SIZE },                    // Top-left
+                    { x: TILE_SIZE * 18, y: TILE_SIZE },              // Top-right
+                    { x: TILE_SIZE, y: TILE_SIZE * 13 },              // Bottom-left
+                    { x: TILE_SIZE * 18, y: TILE_SIZE * 13 }          // Bottom-right
                 ];
                 
                 console.log(`Creating player ${playerId} with viewId: ${viewId}`);
@@ -891,6 +955,11 @@
             }
             
             render() {
+                // Get current canvas display size for responsive scaling
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                
                 // Clear canvas
                 ctx.fillStyle = '#0a1a0a';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -917,10 +986,16 @@
             }
             
             renderMap() {
+                // Center the map on the wider canvas
+                const mapWidth = LEVEL_MAP[0].length * TILE_SIZE;
+                const mapHeight = LEVEL_MAP.length * TILE_SIZE;
+                const offsetX = (canvas.width - mapWidth) / 2;
+                const offsetY = (canvas.height - mapHeight) / 2;
+                
                 LEVEL_MAP.forEach((row, y) => {
                     row.split('').forEach((cell, x) => {
-                        const posX = x * TILE_SIZE;
-                        const posY = y * TILE_SIZE;
+                        const posX = offsetX + (x * TILE_SIZE);
+                        const posY = offsetY + (y * TILE_SIZE);
                         
                         if (cell === 'a') {
                             // Steel wall
@@ -944,44 +1019,56 @@
             }
             
             renderPowerUps() {
+                const offsetX = (canvas.width - (LEVEL_MAP[0].length * TILE_SIZE)) / 2;
+                const offsetY = (canvas.height - (LEVEL_MAP.length * TILE_SIZE)) / 2;
+                
                 for (const powerUp of this.model.powerUps) {
                     const spriteName = `powerup-${powerUp.type}`;
                     if (sprites[spriteName]) {
-                        ctx.drawImage(sprites[spriteName], powerUp.pos.x, powerUp.pos.y, TILE_SIZE, TILE_SIZE);
+                        ctx.drawImage(sprites[spriteName], powerUp.pos.x + offsetX, powerUp.pos.y + offsetY, TILE_SIZE, TILE_SIZE);
                     } else {
                         // Fallback
                         ctx.fillStyle = powerUp.type === 'bomb' ? '#ff0' : powerUp.type === 'fire' ? '#f80' : '#0f0';
-                        ctx.fillRect(powerUp.pos.x + 4, powerUp.pos.y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                        ctx.fillRect(powerUp.pos.x + offsetX + 4, powerUp.pos.y + offsetY + 4, TILE_SIZE - 8, TILE_SIZE - 8);
                     }
                 }
             }
             
             renderBombs() {
+                const offsetX = (canvas.width - (LEVEL_MAP[0].length * TILE_SIZE)) / 2;
+                const offsetY = (canvas.height - (LEVEL_MAP.length * TILE_SIZE)) / 2;
+                
                 for (const bomb of this.model.bombs) {
                     if (sprites.bomb) {
                         // Simple bomb rendering - could add animation frames here
-                        ctx.drawImage(sprites.bomb, bomb.pos.x, bomb.pos.y, TILE_SIZE, TILE_SIZE);
+                        ctx.drawImage(sprites.bomb, bomb.pos.x + offsetX, bomb.pos.y + offsetY, TILE_SIZE, TILE_SIZE);
                     } else {
                         ctx.fillStyle = '#222';
                         ctx.beginPath();
-                        ctx.arc(bomb.pos.x + TILE_SIZE/2, bomb.pos.y + TILE_SIZE/2, TILE_SIZE/3, 0, Math.PI * 2);
+                        ctx.arc(bomb.pos.x + offsetX + TILE_SIZE/2, bomb.pos.y + offsetY + TILE_SIZE/2, TILE_SIZE/3, 0, Math.PI * 2);
                         ctx.fill();
                     }
                 }
             }
             
             renderExplosions() {
+                const offsetX = (canvas.width - (LEVEL_MAP[0].length * TILE_SIZE)) / 2;
+                const offsetY = (canvas.height - (LEVEL_MAP.length * TILE_SIZE)) / 2;
+                
                 for (const explosion of this.model.explosions) {
                     if (sprites.explosion) {
-                        ctx.drawImage(sprites.explosion, explosion.pos.x, explosion.pos.y, TILE_SIZE, TILE_SIZE);
+                        ctx.drawImage(sprites.explosion, explosion.pos.x + offsetX, explosion.pos.y + offsetY, TILE_SIZE, TILE_SIZE);
                     } else {
                         ctx.fillStyle = 'rgba(255, 165, 0, 0.8)';
-                        ctx.fillRect(explosion.pos.x, explosion.pos.y, TILE_SIZE, TILE_SIZE);
+                        ctx.fillRect(explosion.pos.x + offsetX, explosion.pos.y + offsetY, TILE_SIZE, TILE_SIZE);
                     }
                 }
             }
             
             renderPlayers() {
+                const offsetX = (canvas.width - (LEVEL_MAP[0].length * TILE_SIZE)) / 2;
+                const offsetY = (canvas.height - (LEVEL_MAP.length * TILE_SIZE)) / 2;
+                
                 for (const player of this.model.players.values()) {
                     if (!player.isAlive) continue;
                     
@@ -1000,20 +1087,20 @@
                         ctx.drawImage(
                             sprites.bomberman,
                             srcX, srcY, spriteWidth, spriteHeight,
-                            currentPos.x, currentPos.y, TILE_SIZE, TILE_SIZE
+                            currentPos.x + offsetX, currentPos.y + offsetY, TILE_SIZE, TILE_SIZE
                         );
                     } else {
                         // Fallback colored rectangles
                         const colors = ['#fff', '#ff0', '#0ff', '#f0f'];
                         ctx.fillStyle = colors[player.playerId % 4];
-                        ctx.fillRect(currentPos.x + 2, currentPos.y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                        ctx.fillRect(currentPos.x + offsetX + 2, currentPos.y + offsetY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
                     }
                     
                     // Highlight local player
                     if (player.viewId === this.viewId) {
                         ctx.strokeStyle = '#0f0';
                         ctx.lineWidth = 2;
-                        ctx.strokeRect(currentPos.x - 2, currentPos.y - 2, TILE_SIZE + 4, TILE_SIZE + 4);
+                        ctx.strokeRect(currentPos.x + offsetX - 2, currentPos.y + offsetY - 2, TILE_SIZE + 4, TILE_SIZE + 4);
                     }
                 }
             }
@@ -1035,6 +1122,9 @@
             }).then(session => {
                 console.log('MultiSynq session joined successfully!');
                 console.log('Session ID:', session.id);
+                
+                // Store session reference for resize handler
+                window.gameSession = session;
                 
                 document.getElementById('gameStatus').textContent = `Connected! Share URL to play with friends`;
                 
@@ -1089,6 +1179,9 @@
                 console.log('Simple session joined successfully!');
                 console.log('Session ID:', session.id);
                 
+                // Store session reference for resize handler
+                window.gameSession = session;
+                
                 document.getElementById('gameStatus').textContent = `Connected! Share URL to play`;
                 
                 const shareUrl = `${window.location.origin}${window.location.pathname}#${session.id}`;
@@ -1110,6 +1203,15 @@
         // Initialize
         document.getElementById('gameStatus').textContent = 'Loading sprites...';
         loadSprites();
+        
+        // Handle window resize for responsive canvas
+        window.addEventListener('resize', () => {
+            // The CSS will handle the scaling automatically
+            // We just need to trigger a re-render if game is running
+            if (window.gameSession && window.gameSession.view && window.gameSession.view.render) {
+                window.gameSession.view.render();
+            }
+        });
     </script>
 </body>
 </html> 
