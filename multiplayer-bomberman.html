@@ -226,6 +226,12 @@
             moveLeft: { row: 3, frames: [1, 2, 3, 4, 5, 6] }
         };
         
+        // Bomb animation data (3 frames)
+        const bombAnimation = {
+            frames: [0, 1, 2],
+            frameDuration: 200 // 200ms per frame
+        };
+        
         // 16:9 optimized level map (20x15 tiles)
         const LEVEL_MAP = [
             'aaaaaaaaaaaaaaaaaaaa',
@@ -389,15 +395,21 @@
                 if (!this.gameOver && this.gameStarted) {
                     // Update all entities
                     for (const player of this.players.values()) {
-                        player.update();
+                        if (player && player.update) {
+                            player.update();
+                        }
                     }
                     
                     for (const bomb of this.bombs) {
-                        bomb.update();
+                        if (bomb && bomb.update) {
+                            bomb.update();
+                        }
                     }
                     
                     for (const explosion of this.explosions) {
-                        explosion.update();
+                        if (explosion && explosion.update) {
+                            explosion.update();
+                        }
                     }
                     
                     // Check win condition
@@ -626,6 +638,8 @@
             }
             
             update() {
+                if (!this.isAlive) return;
+                
                 // Update animation
                 this.animationTimer += 16;
                 if (this.animationTimer > 150) { // Animation speed
@@ -636,7 +650,7 @@
                     }
                 }
                 
-                // Check for power-up collection
+                // Check for power-up collection every update
                 this.checkPowerUpCollection();
             }
             
@@ -644,12 +658,24 @@
                 if (!this.isAlive) return;
                 
                 const currentPos = this.getCurrentPosition();
+                const playerGridX = Math.round(currentPos.x / TILE_SIZE);
+                const playerGridY = Math.round(currentPos.y / TILE_SIZE);
                 
-                for (const powerUp of this.game.powerUps) {
-                    if (Math.abs(currentPos.x - powerUp.pos.x) < TILE_SIZE * 0.8 &&
-                        Math.abs(currentPos.y - powerUp.pos.y) < TILE_SIZE * 0.8) {
+                // Create array copy to safely iterate while modifying
+                const powerUpsArray = Array.from(this.game.powerUps);
+                
+                for (const powerUp of powerUpsArray) {
+                    // Check if power-up still exists (might have been collected by another player)
+                    if (!this.game.powerUps.has(powerUp)) continue;
+                    
+                    const powerUpGridX = Math.round(powerUp.pos.x / TILE_SIZE);
+                    const powerUpGridY = Math.round(powerUp.pos.y / TILE_SIZE);
+                    
+                    // Use grid-based collision detection for more reliable collection
+                    if (playerGridX === powerUpGridX && playerGridY === powerUpGridY) {
+                        console.log(`Player ${this.playerId} collecting power-up ${powerUp.type} at (${powerUpGridX}, ${powerUpGridY})`);
                         powerUp.collect(this);
-                        break;
+                        break; // Only collect one power-up per update
                     }
                 }
             }
@@ -683,6 +709,15 @@
                 }
             }
             
+            update() {
+                // Update bomb animation using time-based frame cycling
+                this.animationTimer += 16; // Assuming 60fps (16ms per frame)
+                if (this.animationTimer > bombAnimation.frameDuration) {
+                    this.animationTimer = 0;
+                    this.animationFrame = (this.animationFrame + 1) % bombAnimation.frames.length;
+                }
+            }
+            
             explode() {
                 this.game.bombs.delete(this);
                 
@@ -698,10 +733,14 @@
                     
                     if (this.game.destructibleBlocks.has(blockKey)) {
                         this.game.destructibleBlocks.delete(blockKey);
+                        console.log(`Destroyed block at (${gridX}, ${gridY})`);
                         
-                        // Spawn power-up chance
-                        if (this.random() < 0.3) {
-                            PowerUpModel.create({ position: pos });
+                        // Spawn power-up chance (30% chance)
+                        const spawnChance = this.random();
+                        console.log(`Power-up spawn chance: ${spawnChance}`);
+                        if (spawnChance < 0.3) {
+                            console.log(`Spawning power-up at (${gridX}, ${gridY})`);
+                            PowerUpModel.create({ position: { x: gridX * TILE_SIZE, y: gridY * TILE_SIZE } });
                         }
                     }
                     
@@ -811,24 +850,40 @@
             }
             
             collect(player) {
+                console.log(`Power-up ${this.type} collected by player ${player.playerId}`);
+                
                 switch(this.type) {
                     case 'bomb':
                         player.bombCount++;
+                        console.log(`Player ${player.playerId} bomb count: ${player.bombCount}`);
                         break;
                     case 'fire':
                         player.firePower++;
+                        console.log(`Player ${player.playerId} fire power: ${player.firePower}`);
                         break;
                     case 'speed':
-                        // Speed implementation
+                        // Speed implementation could go here
+                        console.log(`Player ${player.playerId} collected speed power-up`);
                         break;
                 }
                 
+                // Publish to player's view
                 player.publish(player.viewId, "powerup-collected", {
                     type: this.type,
+                    playerId: player.playerId,
                     bombCount: player.bombCount,
-                    firePower: player.firePower
+                    firePower: player.firePower,
+                    position: { x: this.pos.x, y: this.pos.y }
                 });
                 
+                // Also publish globally for visual feedback
+                this.game.publish(this.game.sessionId, "powerup-collected-global", {
+                    type: this.type,
+                    playerId: player.playerId,
+                    position: { x: this.pos.x, y: this.pos.y }
+                });
+                
+                // Remove from game state
                 this.game.powerUps.delete(this);
                 this.destroy();
             }
@@ -846,6 +901,7 @@
                 this.subscribe(this.sessionId, "game-started", this.onGameStarted);
                 this.subscribe(this.sessionId, "game-over", this.onGameOver);
                 this.subscribe(this.sessionId, "player-list-updated", this.onPlayerListUpdated);
+                this.subscribe(this.sessionId, "powerup-collected-global", this.onPowerUpCollectedGlobal);
                 this.subscribe(this.viewId, "player-damaged", this.onPlayerDamaged);
                 this.subscribe(this.viewId, "powerup-collected", this.onPowerUpCollected);
                 
@@ -909,8 +965,14 @@
             }
             
             onPowerUpCollected(data) {
+                console.log('Power-up collected by me:', data);
                 this.bombsEl.textContent = data.bombCount;
                 this.fireEl.textContent = data.firePower;
+            }
+            
+            onPowerUpCollectedGlobal(data) {
+                console.log('Power-up collected globally:', data);
+                // Could add visual feedback here like a popup or animation
             }
             
             updatePlayerList(players) {
@@ -1040,8 +1102,26 @@
                 
                 for (const bomb of this.model.bombs) {
                     if (sprites.bomb) {
-                        // Simple bomb rendering - could add animation frames here
-                        ctx.drawImage(sprites.bomb, bomb.pos.x + offsetX, bomb.pos.y + offsetY, TILE_SIZE, TILE_SIZE);
+                        // Animated bomb rendering using time-based animation data
+                        const totalWidth = sprites.bomb.width; // 58 pixels
+                        const frameWidth = Math.floor(totalWidth / 3); // 19 pixels per frame
+                        const spriteHeight = sprites.bomb.height; // 18 pixels
+                        
+                        // Use the bomb animation data structure
+                        const frameIndex = bombAnimation.frames[bomb.animationFrame % bombAnimation.frames.length];
+                        const srcX = frameIndex * frameWidth;
+                        const srcY = 0;
+                        
+                        // Debug: log animation frame occasionally
+                        if (Math.random() < 0.1) { // 10% chance to log
+                            console.log('Bomb render - frame:', frameIndex, 'animationFrame:', bomb.animationFrame, 'time:', Date.now());
+                        }
+                        
+                        ctx.drawImage(
+                            sprites.bomb,
+                            srcX, srcY, frameWidth, spriteHeight,
+                            bomb.pos.x + offsetX, bomb.pos.y + offsetY, TILE_SIZE, TILE_SIZE
+                        );
                     } else {
                         ctx.fillStyle = '#222';
                         ctx.beginPath();
@@ -1110,31 +1190,43 @@
         function startGame() {
             document.getElementById('gameStatus').textContent = 'Connecting to MultiSynq...';
             
-            // Join MultiSynq session with auto-generated session info
+            // Get session info from URL hash or generate new one
+            let sessionName;
+            let sessionPassword = 'bomberman-default'; // Use consistent password
+            
+            if (window.location.hash) {
+                sessionName = window.location.hash.slice(1);
+                console.log('Using session from URL hash:', sessionName);
+            } else {
+                // Generate a consistent session name format
+                sessionName = `bomberman-${Math.random().toString(36).substr(2, 8)}`;
+                window.location.hash = sessionName;
+                console.log('Generated new session:', sessionName);
+            }
+            
+            console.log('Joining session:', sessionName, 'with password:', sessionPassword);
+            
+            // Join MultiSynq session with consistent parameters
             Multisynq.Session.join({
                 apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
-                appId: 'io.multisynq.bomberman-canvas',
+                appId: 'io.multisynq.bomberman-game', // Use single, consistent appId
                 model: GameModel,
                 view: GameView,
-                name: window.location.hash.slice(1) || Multisynq.App.autoSession("bomberman"),
-                password: Multisynq.App.autoPassword(),
+                name: sessionName,
+                password: sessionPassword,
                 step: "auto"
             }).then(session => {
                 console.log('MultiSynq session joined successfully!');
                 console.log('Session ID:', session.id);
+                console.log('Session name:', sessionName);
                 
                 // Store session reference for resize handler
                 window.gameSession = session;
                 
-                document.getElementById('gameStatus').textContent = `Connected! Share URL to play with friends`;
+                document.getElementById('gameStatus').textContent = `Connected! Session: ${sessionName}`;
                 
-                // Update URL for sharing
-                if (!window.location.hash) {
-                    window.location.hash = session.id;
-                }
-                
-                // Share URL
-                const shareUrl = `${window.location.origin}${window.location.pathname}#${session.id}`;
+                // Create shareable URL
+                const shareUrl = `${window.location.origin}${window.location.pathname}#${sessionName}`;
                 console.log('🎮 Share this URL with friends to play together:', shareUrl);
                 
                 // Add click to copy URL functionality
@@ -1142,6 +1234,10 @@
                     if (navigator.clipboard) {
                         navigator.clipboard.writeText(shareUrl).then(() => {
                             console.log('URL copied to clipboard!');
+                            document.getElementById('gameStatus').textContent = `Connected! URL copied to clipboard`;
+                            setTimeout(() => {
+                                document.getElementById('gameStatus').textContent = `Connected! Session: ${sessionName}`;
+                            }, 2000);
                         }).catch(() => {
                             console.log('Could not copy URL');
                         });
@@ -1151,54 +1247,47 @@
             }).catch(error => {
                 console.error('Failed to join MultiSynq session:', error);
                 console.error('Error details:', error.message);
+                document.getElementById('gameStatus').textContent = 'Failed to connect. Playing offline.';
                 
-                if (error.message && error.message.includes('password')) {
-                    document.getElementById('gameStatus').textContent = 'Session password error. Trying alternative...';
-                    
-                    // Try without any session name/password
-                    setTimeout(() => {
-                        trySimpleSession();
-                    }, 2000);
-                } else {
-                    document.getElementById('gameStatus').textContent = 'Failed to connect. Check console for details.';
-                }
+                // Don't try fallback - just show error
+                console.log('Multiplayer unavailable. Please check your connection or API key.');
             });
         }
         
-        // Fallback session approach
-        function trySimpleSession() {
-            console.log('Trying simple session without password...');
-            
-            Multisynq.Session.join({
-                apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
-                appId: 'io.multisynq.bomberman-simple',
-                model: GameModel,
-                view: GameView,
-                step: "auto"
-            }).then(session => {
-                console.log('Simple session joined successfully!');
-                console.log('Session ID:', session.id);
-                
-                // Store session reference for resize handler
-                window.gameSession = session;
-                
-                document.getElementById('gameStatus').textContent = `Connected! Share URL to play`;
-                
-                const shareUrl = `${window.location.origin}${window.location.pathname}#${session.id}`;
-                console.log('🎮 Share this URL:', shareUrl);
-                
-                if (!window.location.hash) {
-                    window.location.hash = session.id;
-                }
-                
-            }).catch(error => {
-                console.error('Simple session also failed:', error);
-                document.getElementById('gameStatus').textContent = 'Connection failed. Game will run in single-player mode.';
-                
-                // Could add offline mode here
-                console.log('You can still play the game locally, but multiplayer features won\'t work.');
-            });
-        }
+        // Remove the fallback session approach - we want consistent sessions
+        // function trySimpleSession() {
+        //     console.log('Trying simple session without password...');
+        //     
+        //     Multisynq.Session.join({
+        //         apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
+        //         appId: 'io.multisynq.bomberman-simple',
+        //         model: GameModel,
+        //         view: GameView,
+        //         step: "auto"
+        //     }).then(session => {
+        //         console.log('Simple session joined successfully!');
+        //         console.log('Session ID:', session.id);
+        //         
+        //         // Store session reference for resize handler
+        //         window.gameSession = session;
+        //         
+        //         document.getElementById('gameStatus').textContent = `Connected! Share URL to play`;
+        //         
+        //         const shareUrl = `${window.location.origin}${window.location.pathname}#${session.id}`;
+        //         console.log('🎮 Share this URL:', shareUrl);
+        //         
+        //         if (!window.location.hash) {
+        //             window.location.hash = session.id;
+        //         }
+        //         
+        //     }).catch(error => {
+        //         console.error('Simple session also failed:', error);
+        //         document.getElementById('gameStatus').textContent = 'Connection failed. Game will run in single-player mode.';
+        //         
+        //         // Could add offline mode here
+        //         console.log('You can still play the game locally, but multiplayer features won\'t work.');
+        //     });
+        // }
         
         // Initialize
         document.getElementById('gameStatus').textContent = 'Loading sprites...';
