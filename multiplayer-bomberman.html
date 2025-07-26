@@ -229,7 +229,7 @@
         // Bomb animation data (3 frames)
         const bombAnimation = {
             frames: [0, 1, 2],
-            frameDuration: 200 // 200ms per frame
+            frameDuration: 150 // 150ms per frame - faster animation
         };
         
         // 16:9 optimized level map (20x15 tiles)
@@ -486,7 +486,19 @@
                     for (const bomb of this.bombs) {
                         if (bomb && bomb.update) {
                             bomb.update();
+                        } else {
+                            // Debug: log when bomb update is not available
+                            if (bomb && Math.random() < 0.1) {
+                                console.log('Bomb missing update method:', bomb);
+                                console.log('Bomb has update method:', typeof bomb.update);
+                                console.log('Bomb constructor:', bomb.constructor.name);
+                            }
                         }
+                    }
+                    
+                    // Debug: log bomb count occasionally
+                    if (this.bombs.size > 0 && Math.random() < 0.1) {
+                        console.log('Game loop - bombs count:', this.bombs.size);
                     }
                     
                     for (const explosion of this.explosions) {
@@ -582,10 +594,20 @@
                 this.lastMoveTime = 0;
                 this.lastBombTime = 0;
                 
+                // Bomb holding mechanics
+                this.isHoldingBomb = false;
+                this.heldBomb = null;
+                this.bombHoldStartTime = 0;
+                this.bombHoldDuration = 2500; // 2.5 seconds in milliseconds
+                this.spacePressed = false;
+                this.spacePressStartTime = 0;
+                
                 // Subscribe to player-specific events
                 try {
                     this.subscribe(viewId, "move", this.handleMove);
                     this.subscribe(viewId, "place-bomb", this.placeBomb);
+                    this.subscribe(viewId, "start-hold-bomb", this.startHoldingBomb);
+                    this.subscribe(viewId, "throw-held-bomb", this.throwBomb);
                     console.log(`Player ${playerId} (${viewId}) initialized successfully`);
                 } catch (error) {
                     console.error('Failed to subscribe to player events:', error);
@@ -675,6 +697,12 @@
                 const now = this.now();
                 if (now - this.lastBombTime < 500) return;
                 
+                // If already holding a bomb, throw it
+                if (this.isHoldingBomb && this.heldBomb) {
+                    this.throwBomb();
+                    return;
+                }
+                
                 const bombPos = this.game.snapToGrid(this.pos);
                 
                 // Check if bomb already exists at position
@@ -692,6 +720,114 @@
                 });
                 
                 this.lastBombTime = now;
+            }
+            
+            startHoldingBomb() {
+                if (!this.isAlive || this.game.gameOver || this.isHoldingBomb) return;
+                
+                const now = this.now();
+                if (now - this.lastBombTime < 500) return;
+                
+                // Create a bomb that the player will hold
+                this.heldBomb = BombModel.create({
+                    position: this.pos, // Start at player position
+                    owner: this,
+                    firePower: this.firePower,
+                    isHeld: true // Mark as held bomb
+                });
+                
+                this.isHoldingBomb = true;
+                this.bombHoldStartTime = now;
+                this.lastBombTime = now;
+                
+                console.log(`Player ${this.playerId} started holding bomb`);
+                
+                // Publish to view for visual feedback
+                this.publish(this.viewId, "bomb-holding-started", {
+                    playerId: this.playerId,
+                    holdStartTime: this.bombHoldStartTime
+                });
+            }
+            
+            throwBomb() {
+                if (!this.isAlive || !this.isHoldingBomb || !this.heldBomb) return;
+                
+                const now = this.now();
+                
+                // Calculate throw direction based on last movement direction
+                let throwPos = { ...this.pos };
+                
+                switch(this.lastDirection) {
+                    case 'up':
+                        throwPos.y -= TILE_SIZE * 3; // Throw 3 tiles up
+                        break;
+                    case 'down':
+                        throwPos.y += TILE_SIZE * 3; // Throw 3 tiles down
+                        break;
+                    case 'left':
+                        throwPos.x -= TILE_SIZE * 3; // Throw 3 tiles left
+                        break;
+                    case 'right':
+                        throwPos.x += TILE_SIZE * 3; // Throw 3 tiles right
+                        break;
+                }
+                
+                // Snap to grid
+                throwPos = this.game.snapToGrid(throwPos);
+                
+                // Check if position is valid
+                if (this.game.isValidPosition(throwPos, this)) {
+                    // Move the held bomb to the throw position
+                    this.heldBomb.pos = throwPos;
+                    this.heldBomb.isHeld = false; // No longer held
+                    
+                    // Add to game bombs set and start countdown
+                    this.game.bombs.add(this.heldBomb);
+                    this.heldBomb.countdown(); // Start the explosion timer
+                    this.heldBomb.startAnimation(); // Start the animation
+                    
+                    console.log(`Player ${this.playerId} threw bomb to (${throwPos.x}, ${throwPos.y})`);
+                    
+                    // Publish to view for visual feedback
+                    this.publish(this.viewId, "bomb-thrown", {
+                        playerId: this.playerId,
+                        throwPosition: throwPos,
+                        holdDuration: now - this.bombHoldStartTime
+                    });
+                } else {
+                    // If throw position is invalid, place at current position
+                    this.heldBomb.pos = this.game.snapToGrid(this.pos);
+                    this.heldBomb.isHeld = false;
+                    this.game.bombs.add(this.heldBomb);
+                    this.heldBomb.countdown(); // Start the explosion timer
+                    this.heldBomb.startAnimation(); // Start the animation
+                    
+                    console.log(`Player ${this.playerId} placed held bomb at current position`);
+                }
+                
+                // Reset holding state
+                this.isHoldingBomb = false;
+                this.heldBomb = null;
+                this.bombHoldStartTime = 0;
+            }
+            
+            updateHeldBomb() {
+                if (!this.isHoldingBomb || !this.heldBomb) return;
+                
+                const now = this.now();
+                const holdTime = now - this.bombHoldStartTime;
+                
+                // Update held bomb position to follow player
+                this.heldBomb.pos = { ...this.pos };
+                
+                // Check if bomb should explode while being held
+                if (holdTime >= BOMB_TIMER) {
+                    console.log(`Player ${this.playerId} died holding bomb!`);
+                    this.takeDamage(); // Player takes damage from held bomb
+                    this.isHoldingBomb = false;
+                    this.heldBomb = null;
+                    this.bombHoldStartTime = 0;
+                }
             }
             
             takeDamage() {
@@ -733,6 +869,9 @@
                     }
                 }
                 
+                // Update held bomb
+                this.updateHeldBomb();
+                
                 // Check for power-up collection every update
                 this.checkPowerUpCollection();
             }
@@ -766,16 +905,26 @@
         PlayerModel.register("PlayerModel");
         
         class BombModel extends Multisynq.Model {
-            init({ position, owner, firePower }) {
+            init({ position, owner, firePower, isHeld = false }) {
                 this.pos = position;
                 this.owner = owner;
                 this.firePower = firePower;
+                this.isHeld = isHeld;
                 this.timer = BOMB_TIMER;
                 this.animationFrame = 0;
                 this.animationTimer = 0;
                 
-                this.game.bombs.add(this);
-                this.countdown();
+                console.log('BombModel created with update method:', typeof this.update);
+                
+                // Only add to game bombs if not held
+                if (!this.isHeld) {
+                    this.game.bombs.add(this);
+                    this.countdown();
+                    this.startAnimation(); // Start the animation
+                    console.log('Bomb added to game bombs set. Total bombs:', this.game.bombs.size);
+                } else {
+                    console.log('Bomb created as held bomb (not added to game set)');
+                }
             }
             
             get game() {
@@ -792,12 +941,32 @@
                 }
             }
             
+            startAnimation() {
+                this.updateAnimation();
+            }
+            
+            updateAnimation() {
+                // Update bomb animation using time-based frame cycling
+                this.animationTimer += bombAnimation.frameDuration;
+                this.animationFrame = (this.animationFrame + 1) % bombAnimation.frames.length;
+                
+                console.log('Bomb animation frame changed to:', this.animationFrame);
+                
+                // Schedule next animation update
+                this.future(bombAnimation.frameDuration).updateAnimation();
+            }
+            
             update() {
+                // Debug: log every update call
+                console.log('Bomb update called - animationFrame:', this.animationFrame, 'timer:', this.timer);
+                
                 // Update bomb animation using time-based frame cycling
                 this.animationTimer += 16; // Assuming 60fps (16ms per frame)
                 if (this.animationTimer > bombAnimation.frameDuration) {
                     this.animationTimer = 0;
                     this.animationFrame = (this.animationFrame + 1) % bombAnimation.frames.length;
+                    
+                    console.log('Bomb animation frame changed to:', this.animationFrame);
                 }
             }
             
@@ -990,6 +1159,8 @@
                 this.subscribe(this.sessionId, "powerup-collected-global", this.onPowerUpCollectedGlobal);
                 this.subscribe(this.viewId, "player-damaged", this.onPlayerDamaged);
                 this.subscribe(this.viewId, "powerup-collected", this.onPowerUpCollected);
+                this.subscribe(this.viewId, "bomb-holding-started", this.onBombHoldingStarted);
+                this.subscribe(this.viewId, "bomb-thrown", this.onBombThrown);
                 
                 this.render();
             }
@@ -1011,18 +1182,61 @@
                     if (this.model.gameOver) {
                         this.publish(this.sessionId, "restart-game", {});
                     } else {
-                        this.publish(this.viewId, "place-bomb", {});
+                        // Start bomb holding timer
+                        this.spacePressStartTime = Date.now();
+                        this.spacePressed = true;
+                        
+                        // Start the hold timer
+                        this.startBombHoldTimer();
                     }
                 }
             }
             
             handleKeyUp(e) {
                 this.pressedKeys.delete(e.code);
+                
+                if (e.code === 'Space') {
+                    if (this.spacePressed) {
+                        const holdDuration = Date.now() - this.spacePressStartTime;
+                        
+                        if (holdDuration >= 2500) {
+                            // Long press - throw the bomb
+                            this.publish(this.viewId, "throw-held-bomb", {});
+                        } else {
+                            // Short press - place bomb normally
+                            this.publish(this.viewId, "place-bomb", {});
+                        }
+                        
+                        this.spacePressed = false;
+                        this.spacePressStartTime = 0;
+                        this.clearBombHoldTimer();
+                    }
+                }
             }
             
             publishMove(direction) {
                 if (!this.model.gameOver) {
                     this.publish(this.viewId, "move", { direction });
+                }
+            }
+            
+            startBombHoldTimer() {
+                // Clear any existing timer
+                this.clearBombHoldTimer();
+                
+                // Start new timer
+                this.bombHoldTimer = setTimeout(() => {
+                    if (this.spacePressed) {
+                        // Space has been held for 2.5 seconds, start holding bomb
+                        this.publish(this.viewId, "start-hold-bomb", {});
+                    }
+                }, 2500);
+            }
+            
+            clearBombHoldTimer() {
+                if (this.bombHoldTimer) {
+                    clearTimeout(this.bombHoldTimer);
+                    this.bombHoldTimer = null;
                 }
             }
             
@@ -1054,6 +1268,21 @@
                 console.log('Power-up collected by me:', data);
                 this.bombsEl.textContent = data.bombCount;
                 this.fireEl.textContent = data.firePower;
+            }
+            
+            onBombHoldingStarted(data) {
+                console.log('Started holding bomb:', data);
+                // Could add visual feedback here like a warning sound or UI indicator
+                this.gameStatusEl.textContent = '⚠️ Holding bomb! Press SPACE to throw!';
+            }
+            
+            onBombThrown(data) {
+                console.log('Bomb thrown:', data);
+                this.gameStatusEl.textContent = '💣 Bomb thrown!';
+                // Reset status after a short delay
+                setTimeout(() => {
+                    this.gameStatusEl.textContent = 'Game Started! Fight!';
+                }, 2000);
             }
             
             onPowerUpCollectedGlobal(data) {
@@ -1186,34 +1415,59 @@
                 const offsetX = (canvas.width - (LEVEL_MAP[0].length * TILE_SIZE)) / 2;
                 const offsetY = (canvas.height - (LEVEL_MAP.length * TILE_SIZE)) / 2;
                 
+                // Render regular bombs
                 for (const bomb of this.model.bombs) {
-                    if (sprites.bomb) {
-                        // Animated bomb rendering using time-based animation data
-                        const totalWidth = sprites.bomb.width; // 58 pixels
-                        const frameWidth = Math.floor(totalWidth / 3); // 19 pixels per frame
-                        const spriteHeight = sprites.bomb.height; // 18 pixels
-                        
-                        // Use the bomb animation data structure
-                        const frameIndex = bombAnimation.frames[bomb.animationFrame % bombAnimation.frames.length];
-                        const srcX = frameIndex * frameWidth;
-                        const srcY = 0;
-                        
-                        // Debug: log animation frame occasionally
-                        if (Math.random() < 0.1) { // 10% chance to log
-                            console.log('Bomb render - frame:', frameIndex, 'animationFrame:', bomb.animationFrame, 'time:', Date.now());
-                        }
-                        
-                        ctx.drawImage(
-                            sprites.bomb,
-                            srcX, srcY, frameWidth, spriteHeight,
-                            bomb.pos.x + offsetX, bomb.pos.y + offsetY, TILE_SIZE, TILE_SIZE
-                        );
-                    } else {
-                        ctx.fillStyle = '#222';
-                        ctx.beginPath();
-                        ctx.arc(bomb.pos.x + offsetX + TILE_SIZE/2, bomb.pos.y + offsetY + TILE_SIZE/2, TILE_SIZE/3, 0, Math.PI * 2);
-                        ctx.fill();
+                    this.renderBomb(bomb, offsetX, offsetY);
+                }
+                
+                // Render held bombs
+                for (const player of this.model.players.values()) {
+                    if (player.isHoldingBomb && player.heldBomb) {
+                        this.renderBomb(player.heldBomb, offsetX, offsetY, true);
                     }
+                }
+            }
+            
+            renderBomb(bomb, offsetX, offsetY, isHeld = false) {
+                if (sprites.bomb) {
+                    // Animated bomb rendering using time-based animation data
+                    const totalWidth = sprites.bomb.width; // 58 pixels
+                    const frameWidth = Math.floor(totalWidth / 3); // 19 pixels per frame
+                    const spriteHeight = sprites.bomb.height; // 18 pixels
+                    
+                    // Use the bomb animation data structure
+                    const frameIndex = bombAnimation.frames[bomb.animationFrame % bombAnimation.frames.length];
+                    const srcX = frameIndex * frameWidth;
+                    const srcY = 0;
+                    
+                    // Debug: log animation frame occasionally
+                    if (Math.random() < 0.01) { // 1% chance to log
+                        console.log('Bomb render - frame:', frameIndex, 'animationFrame:', bomb.animationFrame, 'time:', Date.now());
+                    }
+                    
+                    ctx.drawImage(
+                        sprites.bomb,
+                        srcX, srcY, frameWidth, spriteHeight,
+                        bomb.pos.x + offsetX, bomb.pos.y + offsetY, TILE_SIZE, TILE_SIZE
+                    );
+                    
+                    // Add visual indicator for held bombs
+                    if (isHeld) {
+                        ctx.strokeStyle = '#ff0000';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(bomb.pos.x + offsetX - 2, bomb.pos.y + offsetY - 2, TILE_SIZE + 4, TILE_SIZE + 4);
+                        
+                        // Add warning text
+                        ctx.fillStyle = '#ff0000';
+                        ctx.font = '12px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('HELD!', bomb.pos.x + offsetX + TILE_SIZE/2, bomb.pos.y + offsetY - 5);
+                    }
+                } else {
+                    ctx.fillStyle = isHeld ? '#ff0000' : '#222';
+                    ctx.beginPath();
+                    ctx.arc(bomb.pos.x + offsetX + TILE_SIZE/2, bomb.pos.y + offsetY + TILE_SIZE/2, TILE_SIZE/3, 0, Math.PI * 2);
+                    ctx.fill();
                 }
             }
             
