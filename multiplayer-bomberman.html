@@ -251,6 +251,86 @@
             'aaaaaaaaaaaaaaaaaaaa',
         ];
         
+        // LobbyRelayModel - communicates with lobby session
+        class LobbyRelayModel extends Multisynq.Model {
+            init() {
+                this._lobbySessionId = null;
+                this._gameSessionId = null;
+                this._playerName = null;
+                this._isHost = false;
+                
+                // Subscribe to lobby events
+                this.subscribe(this.sessionId, "lobby-connect", this.connectToLobby);
+                this.subscribe(this.sessionId, "game-status-update", this.updateLobbyStatus);
+                
+                console.log('LobbyRelayModel initialized');
+            }
+            
+            connectToLobby(data) {
+                this._lobbySessionId = data.lobbySessionId;
+                this._gameSessionId = data.gameSessionId;
+                this._playerName = data.playerName;
+                this._isHost = data.isHost;
+                
+                console.log('LobbyRelay connected to lobby:', this._lobbySessionId);
+                
+                // Notify lobby that game has started
+                this.publish(this._lobbySessionId, "game-started", {
+                    gameSessionId: this._gameSessionId,
+                    playerName: this._playerName,
+                    isHost: this._isHost
+                });
+            }
+            
+            updateLobbyStatus(data) {
+                if (this._lobbySessionId) {
+                    this.publish(this._lobbySessionId, "game-status", {
+                        gameSessionId: this._gameSessionId,
+                        status: data.status,
+                        playerCount: data.playerCount,
+                        gameState: data.gameState
+                    });
+                }
+            }
+        }
+        
+        // Register the LobbyRelayModel
+        if (typeof LobbyRelayModel.register === 'function') {
+            LobbyRelayModel.register("LobbyRelayModel");
+        } else {
+            console.warn('LobbyRelayModel.register not available');
+        }
+        
+        // LobbyRelayView - handles lobby communication
+        class LobbyRelayView extends Multisynq.View {
+            constructor(model) {
+                super(model);
+                this.model = model;
+                this.setupSubscriptions();
+            }
+            
+            setupSubscriptions() {
+                this.subscribe(this.sessionId, "lobby-status", this.onLobbyStatus);
+            }
+            
+            onLobbyStatus(data) {
+                console.log('Received lobby status:', data);
+                // Could update UI or handle lobby messages here
+            }
+            
+            detach() {
+                // Clean up when view is detached
+                this.unsubscribeAll();
+            }
+        }
+        
+        // Register the LobbyRelayView
+        if (typeof LobbyRelayView.register === 'function') {
+            LobbyRelayView.register("LobbyRelayView");
+        } else {
+            console.warn('LobbyRelayView.register not available');
+        }
+        
         // MultiSynq Models
         class GameModel extends Multisynq.Model {
             init() {
@@ -271,6 +351,9 @@
                         }
                     });
                 });
+                
+                // Create LobbyRelayModel for lobby communication
+                LobbyRelayModel.create();
                 
                 // Subscribe to events
                 this.subscribe(this.sessionId, "view-join", this.playerJoined);
@@ -898,6 +981,9 @@
                 this.setupInput();
                 this.setupUI();
                 
+                // Create LobbyRelayView for lobby communication
+                this.lobbyRelay = new LobbyRelayView(this.wellKnownModel("lobbyRelay"));
+                
                 this.subscribe(this.sessionId, "game-started", this.onGameStarted);
                 this.subscribe(this.sessionId, "game-over", this.onGameOver);
                 this.subscribe(this.sessionId, "player-list-updated", this.onPlayerListUpdated);
@@ -1184,21 +1270,47 @@
                     }
                 }
             }
+            
+            detach() {
+                // Clean up LobbyRelayView when view is detached
+                if (this.lobbyRelay) {
+                    this.lobbyRelay.detach();
+                    this.lobbyRelay = null;
+                }
+            }
         }
         
         // Start the game
         function startGame() {
             document.getElementById('gameStatus').textContent = 'Connecting to MultiSynq...';
             
-            // Get session info from URL hash or generate new one
+            // Get session info from URL hash or localStorage
             let sessionName;
-            let sessionPassword = 'bomberman-default'; // Use consistent password
+            let sessionPassword = 'bomberman-default';
+            let lobbySessionData = null;
             
-            if (window.location.hash) {
+            // Check localStorage for lobby session data
+            const storedSession = localStorage.getItem('bomberman_session');
+            if (storedSession) {
+                try {
+                    lobbySessionData = JSON.parse(storedSession);
+                    sessionName = lobbySessionData.sessionId;
+                    console.log('Using session from localStorage:', sessionName);
+                    // Clear localStorage after reading
+                    localStorage.removeItem('bomberman_session');
+                } catch (e) {
+                    console.error('Failed to parse stored session data:', e);
+                }
+            }
+            
+            // Fallback to URL hash
+            if (!sessionName && window.location.hash) {
                 sessionName = window.location.hash.slice(1);
                 console.log('Using session from URL hash:', sessionName);
-            } else {
-                // Generate a consistent session name format
+            }
+            
+            // Generate new session if none found
+            if (!sessionName) {
                 sessionName = `bomberman-${Math.random().toString(36).substr(2, 8)}`;
                 window.location.hash = sessionName;
                 console.log('Generated new session:', sessionName);
@@ -1209,11 +1321,16 @@
             // Join MultiSynq session with consistent parameters
             Multisynq.Session.join({
                 apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
-                appId: 'io.multisynq.bomberman-game', // Use single, consistent appId
+                appId: 'io.multisynq.bomberman-game',
                 model: GameModel,
                 view: GameView,
                 name: sessionName,
                 password: sessionPassword,
+                viewData: {
+                    playerName: lobbySessionData?.playerName || 'Player',
+                    isHost: lobbySessionData?.isHost || false,
+                    sessionId: sessionName
+                },
                 step: "auto"
             }).then(session => {
                 console.log('MultiSynq session joined successfully!');
@@ -1249,7 +1366,6 @@
                 console.error('Error details:', error.message);
                 document.getElementById('gameStatus').textContent = 'Failed to connect. Playing offline.';
                 
-                // Don't try fallback - just show error
                 console.log('Multiplayer unavailable. Please check your connection or API key.');
             });
         }
