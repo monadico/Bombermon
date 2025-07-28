@@ -619,6 +619,8 @@
                 this.shieldDuration = 0;
                 this.hasRemoteControl = false;
                 
+                console.log(`Player ${this.playerId} initialized with shield: ${this.hasShield}, duration: ${this.shieldDuration}`);
+                
                 // Subscribe to player-specific events
                 try {
                     this.subscribe(viewId, "move", this.handleMove);
@@ -654,6 +656,8 @@
                 this.hasShield = false;
                 this.shieldDuration = 0;
                 this.hasRemoteControl = false;
+                
+                console.log(`Player ${this.playerId} reset - shield: ${this.hasShield}, duration: ${this.shieldDuration}`);
             }
             
             handleMove(data) {
@@ -876,6 +880,12 @@
                     console.log(`Player ${this.playerId} blocked damage with shield!`);
                     this.hasShield = false;
                     this.shieldDuration = 0;
+                    
+                    // Publish shield block event for UI feedback
+                    this.publish(this.viewId, "shield-blocked", {
+                        playerId: this.playerId
+                    });
+                    
                     return; // Shield absorbs the damage
                 } else {
                     console.log(`Player ${this.playerId} taking damage (no shield)`);
@@ -1073,6 +1083,8 @@
                         const playerPos = player.getCurrentPosition();
                         if (Math.abs(playerPos.x - pos.x) < TILE_SIZE/2 &&
                             Math.abs(playerPos.y - pos.y) < TILE_SIZE/2) {
+                            console.log(`Explosion at (${pos.x}, ${pos.y}) hitting player ${player.playerId} at (${playerPos.x}, ${playerPos.y})`);
+                            console.log(`Player ${player.playerId} has shield: ${player.hasShield}`);
                             player.takeDamage();
                         }
                     }
@@ -1188,6 +1200,7 @@
                         player.hasShield = true;
                         player.shieldDuration = 10000; // 10 seconds
                         console.log(`Player ${player.playerId} got shield for 10 seconds`);
+                        console.log(`Player ${player.playerId} shield status: ${player.hasShield}, duration: ${player.shieldDuration}`);
                         break;
                     case 'remote':
                         player.hasRemoteControl = true;
@@ -1240,6 +1253,7 @@
                 this.subscribe(this.viewId, "powerup-collected", this.onPowerUpCollected);
                 this.subscribe(this.viewId, "bomb-holding-started", this.onBombHoldingStarted);
                 this.subscribe(this.viewId, "bomb-thrown", this.onBombThrown);
+                this.subscribe(this.viewId, "shield-blocked", this.onShieldBlocked);
                 
                 this.render();
             }
@@ -1398,6 +1412,14 @@
             
             onBombThrown(data) {
                 this.gameStatusEl.textContent = '💣 Bomb thrown!';
+                // Reset status after a short delay
+                setTimeout(() => {
+                    this.gameStatusEl.textContent = 'Game Started! Fight!';
+                }, 2000);
+            }
+            
+            onShieldBlocked(data) {
+                this.gameStatusEl.textContent = '🛡️ Shield blocked explosion!';
                 // Reset status after a short delay
                 setTimeout(() => {
                     this.gameStatusEl.textContent = 'Game Started! Fight!';
