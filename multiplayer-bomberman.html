@@ -155,10 +155,18 @@
             <div>Bombs: <span id="bombs">1</span></div>
             <div>Fire Power: <span id="fire">1</span></div>
             <div id="gameStatus">Initializing...</div>
-            <div id="abilities" style="margin-top: 5px; font-size: 12px;">
-                <div id="shieldStatus" style="display: none; color: #00ffff;">🛡️ Shield Active</div>
-                <div id="remoteStatus" style="display: none; color: #ff00ff;">🎮 Remote Control Ready</div>
-                <div id="throwStatus" style="display: none; color: #ff8800;">💣 Throw Bomb Active</div>
+                            <div id="abilities" style="margin-top: 5px; font-size: 12px;">
+                    <div id="shieldStatus" style="display: none; color: #00ffff;">🛡️ Shield Active</div>
+                    <div id="remoteStatus" style="display: none; color: #ff00ff;">🎮 Remote Control Ready</div>
+                    <div id="throwStatus" style="display: none; color: #ff8800;">💣 Throw Bomb Active - Hold Space for distance</div>
+                    <div id="speedStatus" style="display: none; color: #00ff00;">💨 Speed Boost Active</div>
+                <div id="throwStrengthBar" style="display: none; margin-top: 5px;">
+                    <div style="font-size: 10px; color: #ff8800; margin-bottom: 2px;">Throw Strength:</div>
+                    <div style="width: 100px; height: 8px; background: #333; border: 1px solid #666; border-radius: 4px; overflow: hidden;">
+                        <div id="throwStrengthFill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff8800, #ff4400); transition: width 0.1s;"></div>
+                    </div>
+                    <div id="throwDistanceText" style="font-size: 9px; color: #ff8800; margin-top: 2px;">Distance: 1 tile</div>
+                </div>
                 <div style="margin-top: 5px; font-size: 10px; opacity: 0.8;">
                     <div>💛 Bomb | 🧡 Fire | 💚 Speed | 💙 Shield | 💜 Remote | 🧡 Throw</div>
                 </div>
@@ -618,12 +626,15 @@
                 this.spacePressed = false;
                 this.spacePressStartTime = 0;
                 
-                // Special abilities
+                // Special abilities with timers
                 this.hasShield = false;
                 this.shieldDuration = 0;
                 this.hasRemoteControl = false;
-                this.remoteBombs = []; // Track remote bombs (max 2)
+                this.remoteControlDuration = 0;
                 this.hasThrowBomb = false;
+                this.throwBombDuration = 0;
+                this.speedBoostDuration = 0;
+                this.remoteBombs = []; // Track remote bombs (max 2)
                 
                 console.log(`Player ${this.playerId} initialized with shield: ${this.hasShield}, duration: ${this.shieldDuration}`);
                 
@@ -658,12 +669,15 @@
                 this.currentAnimation = 'idleDown';
                 this.moveProgress = 0;
                 
-                // Reset abilities
+                // Reset abilities with timers
                 this.hasShield = false;
                 this.shieldDuration = 0;
                 this.hasRemoteControl = false;
-                this.remoteBombs = []; // Clear remote bombs
+                this.remoteControlDuration = 0;
                 this.hasThrowBomb = false;
+                this.throwBombDuration = 0;
+                this.speedBoostDuration = 0;
+                this.remoteBombs = []; // Clear remote bombs
                 
                 console.log(`Player ${this.playerId} reset - shield: ${this.hasShield}, duration: ${this.shieldDuration}`);
             }
@@ -1109,6 +1123,40 @@
                     }
                 }
                 
+                // Update speed boost duration
+                if (this.speedBoostDuration > 0) {
+                    this.speedBoostDuration -= 100; // Reduce by 100ms each update
+                    if (this.speedBoostDuration <= 0) {
+                        this.moveSpeed = MOVE_SPEED; // Reset to base speed
+                        console.log(`Player ${this.playerId} speed boost expired`);
+                    }
+                }
+                
+                // Update remote control duration
+                if (this.hasRemoteControl && this.remoteControlDuration > 0) {
+                    this.remoteControlDuration -= 100; // Reduce by 100ms each update
+                    if (this.remoteControlDuration <= 0) {
+                        this.hasRemoteControl = false;
+                        // Clear any existing remote bombs
+                        for (const bomb of this.remoteBombs) {
+                            if (bomb && this.game.bombs.has(bomb)) {
+                                bomb.explode();
+                            }
+                        }
+                        this.remoteBombs = [];
+                        console.log(`Player ${this.playerId} remote control expired`);
+                    }
+                }
+                
+                // Update throw bomb duration
+                if (this.hasThrowBomb && this.throwBombDuration > 0) {
+                    this.throwBombDuration -= 100; // Reduce by 100ms each update
+                    if (this.throwBombDuration <= 0) {
+                        this.hasThrowBomb = false;
+                        console.log(`Player ${this.playerId} throw bomb ability expired`);
+                    }
+                }
+                
                 // Update held bomb
                 this.updateHeldBomb();
                 
@@ -1374,21 +1422,24 @@
                         break;
                     case 'speed':
                         player.moveSpeed = Math.min(player.moveSpeed + 20, 200);
-                        console.log(`Player ${player.playerId} move speed: ${player.moveSpeed}`);
+                        player.speedBoostDuration = 15000; // 15 seconds
+                        console.log(`Player ${player.playerId} got speed boost for 15 seconds`);
                         break;
                     case 'shield':
                         player.hasShield = true;
-                        player.shieldDuration = 10000; // 10 seconds
-                        console.log(`Player ${player.playerId} got shield for 10 seconds`);
+                        player.shieldDuration = 12000; // 12 seconds
+                        console.log(`Player ${player.playerId} got shield for 12 seconds`);
                         console.log(`Player ${player.playerId} shield status: ${player.hasShield}, duration: ${player.shieldDuration}`);
                         break;
                     case 'remote':
                         player.hasRemoteControl = true;
-                        console.log(`Player ${player.playerId} got remote control`);
+                        player.remoteControlDuration = 20000; // 20 seconds
+                        console.log(`Player ${player.playerId} got remote control for 20 seconds`);
                         break;
                     case 'throw':
                         player.hasThrowBomb = true;
-                        console.log(`Player ${player.playerId} got throw bomb ability`);
+                        player.throwBombDuration = 18000; // 18 seconds
+                        console.log(`Player ${player.playerId} got throw bomb ability for 18 seconds`);
                         break;
                 }
                 
@@ -1502,6 +1553,12 @@
                         this.spacePressStartTime = Date.now();
                         this.spacePressed = true;
                         
+                        // Check if player has throw bomb ability and show strength bar
+                        const localPlayer = this.model.players.get(this.viewId);
+                        if (localPlayer && localPlayer.hasThrowBomb) {
+                            this.showThrowStrengthBar();
+                        }
+                        
                         // Start the hold timer
                         this.startBombHoldTimer();
                     }
@@ -1538,6 +1595,9 @@
                         this.spacePressed = false;
                         this.spacePressStartTime = 0;
                         this.clearBombHoldTimer();
+                        
+                        // Hide throw strength bar
+                        this.hideThrowStrengthBar();
                     }
                 }
             }
@@ -1575,12 +1635,54 @@
                 }
             }
             
+            showThrowStrengthBar() {
+                if (this.throwStrengthBar) {
+                    this.throwStrengthBar.style.display = 'block';
+                    this.updateThrowStrengthBar();
+                }
+            }
+            
+            hideThrowStrengthBar() {
+                if (this.throwStrengthBar) {
+                    this.throwStrengthBar.style.display = 'none';
+                }
+            }
+            
+            updateThrowStrengthBar() {
+                if (!this.spacePressed || !this.throwStrengthFill || !this.throwDistanceText) return;
+                
+                const holdDuration = Date.now() - this.spacePressStartTime;
+                const maxHoldTime = 2500; // 2.5 seconds
+                const holdTime = Math.min(holdDuration, maxHoldTime);
+                
+                // Calculate strength percentage (0-100%)
+                const strengthPercent = (holdTime / maxHoldTime) * 100;
+                
+                // Calculate distance (1-8 tiles)
+                const minDistance = 1;
+                const maxDistance = 8;
+                const distance = Math.floor(minDistance + (holdTime / maxHoldTime) * (maxDistance - minDistance));
+                
+                // Update the visual bar
+                this.throwStrengthFill.style.width = strengthPercent + '%';
+                this.throwDistanceText.textContent = `Distance: ${distance} tile${distance > 1 ? 's' : ''}`;
+                
+                // Continue updating if still holding
+                if (this.spacePressed) {
+                    requestAnimationFrame(() => this.updateThrowStrengthBar());
+                }
+            }
+            
             setupUI() {
                 this.livesEl = document.getElementById('lives');
                 this.bombsEl = document.getElementById('bombs');
                 this.fireEl = document.getElementById('fire');
                 this.gameStatusEl = document.getElementById('gameStatus');
                 this.playersEl = document.getElementById('players');
+                this.throwStrengthBar = document.getElementById('throwStrengthBar');
+                this.throwStrengthFill = document.getElementById('throwStrengthFill');
+                this.throwDistanceText = document.getElementById('throwDistanceText');
+                this.speedStatus = document.getElementById('speedStatus');
             }
             
             onGameStarted() {
@@ -1655,6 +1757,7 @@
                 const shieldStatus = document.getElementById('shieldStatus');
                 const remoteStatus = document.getElementById('remoteStatus');
                 const throwStatus = document.getElementById('throwStatus');
+                const speedStatus = document.getElementById('speedStatus');
                 
                 // Update shield status
                 if (localPlayer.hasShield) {
@@ -1668,7 +1771,8 @@
                 if (localPlayer.hasRemoteControl) {
                     remoteStatus.style.display = 'block';
                     const bombCount = localPlayer.remoteBombs.length + (localPlayer.isHoldingBomb && localPlayer.heldBomb && localPlayer.heldBomb.isRemote ? 1 : 0);
-                    remoteStatus.textContent = `🎮 Remote Control Ready (${bombCount}/2 bombs) - Press R`;
+                    const timeLeft = Math.ceil(localPlayer.remoteControlDuration / 1000);
+                    remoteStatus.textContent = `🎮 Remote Control (${timeLeft}s) - ${bombCount}/2 bombs - Press R`;
                 } else {
                     remoteStatus.style.display = 'none';
                 }
@@ -1676,9 +1780,19 @@
                 // Update throw bomb status
                 if (localPlayer.hasThrowBomb) {
                     throwStatus.style.display = 'block';
-                    throwStatus.textContent = '💣 Throw Bomb Active - Hold Space for distance';
+                    const timeLeft = Math.ceil(localPlayer.throwBombDuration / 1000);
+                    throwStatus.textContent = `💣 Throw Bomb (${timeLeft}s) - Hold Space for distance`;
                 } else {
                     throwStatus.style.display = 'none';
+                }
+                
+                // Update speed boost status
+                if (localPlayer.speedBoostDuration > 0) {
+                    speedStatus.style.display = 'block';
+                    const timeLeft = Math.ceil(localPlayer.speedBoostDuration / 1000);
+                    speedStatus.textContent = `💨 Speed Boost (${timeLeft}s)`;
+                } else {
+                    speedStatus.style.display = 'none';
                 }
             }
             
