@@ -631,6 +631,10 @@
                 if (this.game.isValidPosition(targetPos, this)) {
                     this.startMovement(direction, targetPos);
                     this.lastMoveTime = now;
+                } else {
+                    // Allow direction change even if movement isn't possible
+                    this.lastDirection = direction;
+                    this.currentAnimation = `idle${direction.charAt(0).toUpperCase() + direction.slice(1)}`;
                 }
             }
             
