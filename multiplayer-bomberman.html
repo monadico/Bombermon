@@ -155,6 +155,10 @@
             <div>Bombs: <span id="bombs">1</span></div>
             <div>Fire Power: <span id="fire">1</span></div>
             <div id="gameStatus">Initializing...</div>
+            <div id="abilities" style="margin-top: 5px; font-size: 12px;">
+                <div id="shieldStatus" style="display: none; color: #00ffff;">🛡️ Shield Active</div>
+                <div id="remoteStatus" style="display: none; color: #ff00ff;">🎮 Remote Control Ready</div>
+            </div>
             <div>🎵 <button id="musicToggle" style="background: #00ff88; color: #000; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">Music: ON</button></div>
         </div>
         
@@ -168,7 +172,7 @@
         </div>
         
         <div id="controls">
-            <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Share this URL to play with friends!
+            <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Hold Spacebar to throw bomb • R key for remote detonation • Share this URL to play with friends!
         </div>
     </div>
 
@@ -249,7 +253,7 @@
             frameDuration: 150 // 150ms per frame - faster animation
         };
         
-        // 16:9 optimized level map (20x15 tiles)
+        // 16:9 optimized level map (20x15 tiles) - More strategic layout
         const LEVEL_MAP = [
             'aaaaaaaaaaaaaaaaaaaa',
             'a @ z z z z z z z z a',
@@ -590,6 +594,7 @@
                 this.lives = 3;
                 this.bombCount = 1;
                 this.firePower = 1;
+                this.moveSpeed = MOVE_SPEED; // Initialize move speed
                 this.isAlive = true;
                 this.isMoving = false;
                 this.targetPos = null;
@@ -609,12 +614,18 @@
                 this.spacePressed = false;
                 this.spacePressStartTime = 0;
                 
+                // Special abilities
+                this.hasShield = false;
+                this.shieldDuration = 0;
+                this.hasRemoteControl = false;
+                
                 // Subscribe to player-specific events
                 try {
                     this.subscribe(viewId, "move", this.handleMove);
                     this.subscribe(viewId, "place-bomb", this.placeBomb);
                     this.subscribe(viewId, "start-hold-bomb", this.startHoldingBomb);
                     this.subscribe(viewId, "throw-held-bomb", this.throwBomb);
+                    this.subscribe(viewId, "detonate-remote", this.detonateRemoteBombs);
                     console.log(`Player ${playerId} (${viewId}) initialized successfully`);
                 } catch (error) {
                     console.error('Failed to subscribe to player events:', error);
@@ -631,12 +642,18 @@
                 this.lives = 3;
                 this.bombCount = 1;
                 this.firePower = 1;
+                this.moveSpeed = MOVE_SPEED; // Reset move speed
                 this.isAlive = true;
                 this.isMoving = false;
                 this.targetPos = null;
                 this.lastDirection = 'down';
                 this.currentAnimation = 'idleDown';
                 this.moveProgress = 0;
+                
+                // Reset abilities
+                this.hasShield = false;
+                this.shieldDuration = 0;
+                this.hasRemoteControl = false;
             }
             
             handleMove(data) {
@@ -682,8 +699,12 @@
             interpolateMovement() {
                 if (!this.isMoving) return;
                 
-                // Faster movement interpolation for more responsive feel
-                this.moveProgress += 0.18; // Increased from 0.15 to 0.18
+                // Calculate speed factor based on moveSpeed
+                const baseSpeed = 0.18;
+                const speedFactor = this.moveSpeed / MOVE_SPEED;
+                const progressIncrement = baseSpeed * speedFactor;
+                
+                this.moveProgress += progressIncrement;
                 
                 if (this.moveProgress >= 1.0) {
                     this.pos = this.targetPos;
@@ -691,8 +712,11 @@
                     this.moveProgress = 0;
                     this.currentAnimation = `idle${this.lastDirection.charAt(0).toUpperCase() + this.lastDirection.slice(1)}`;
                 } else {
-                    // Slightly faster interpolation steps
-                    this.future(14).interpolateMovement(); // Reduced from 16ms to 14ms
+                    // Adjust timing based on speed
+                    const baseTiming = 14;
+                    const timingFactor = 1 / speedFactor;
+                    const nextUpdate = Math.max(8, Math.min(20, baseTiming * timingFactor));
+                    this.future(nextUpdate).interpolateMovement();
                 }
             }
             
@@ -847,6 +871,16 @@
             takeDamage() {
                 if (!this.isAlive) return;
                 
+                // Shield protection
+                if (this.hasShield) {
+                    console.log(`Player ${this.playerId} blocked damage with shield!`);
+                    this.hasShield = false;
+                    this.shieldDuration = 0;
+                    return; // Shield absorbs the damage
+                } else {
+                    console.log(`Player ${this.playerId} taking damage (no shield)`);
+                }
+                
                 this.lives--;
                 
                 if (this.lives <= 0) {
@@ -885,6 +919,15 @@
                     }
                 }
                 
+                // Update shield duration
+                if (this.hasShield && this.shieldDuration > 0) {
+                    this.shieldDuration -= 100; // Reduce by 100ms each update
+                    if (this.shieldDuration <= 0) {
+                        this.hasShield = false;
+                        console.log(`Player ${this.playerId} shield expired`);
+                    }
+                }
+                
                 // Update held bomb
                 this.updateHeldBomb();
                 
@@ -915,6 +958,28 @@
                         break; // Only collect one power-up per update
                     }
                 }
+            }
+            
+            detonateRemoteBombs() {
+                if (!this.hasRemoteControl) {
+                    console.log(`Player ${this.playerId} tried to detonate but has no remote control`);
+                    return;
+                }
+                
+                console.log(`Player ${this.playerId} detonating remote bombs...`);
+                
+                // Find all bombs owned by this player and detonate them
+                let bombCount = 0;
+                for (const bomb of this.game.bombs) {
+                    if (bomb.owner === this) {
+                        bomb.explode();
+                        bombCount++;
+                    }
+                }
+                
+                // Remove remote control ability after use
+                this.hasRemoteControl = false;
+                console.log(`Player ${this.playerId} detonated ${bombCount} remote bombs`);
             }
         }
         PlayerModel.register("PlayerModel");
@@ -1090,7 +1155,7 @@
         class PowerUpModel extends Multisynq.Model {
             init({ position }) {
                 this.pos = position;
-                const types = ['bomb', 'fire', 'speed'];
+                const types = ['bomb', 'fire', 'speed', 'shield', 'remote'];
                 this.type = types[Math.floor(this.random() * types.length)];
                 
                 this.game.powerUps.add(this);
@@ -1104,15 +1169,29 @@
                 // Play powerup sound
                 playPowerupSound();
                 
+                console.log(`Player ${player.playerId} collected ${this.type} powerup`);
+                
                 switch(this.type) {
                     case 'bomb':
                         player.bombCount++;
+                        console.log(`Player ${player.playerId} bomb count: ${player.bombCount}`);
                         break;
                     case 'fire':
                         player.firePower++;
+                        console.log(`Player ${player.playerId} fire power: ${player.firePower}`);
                         break;
                     case 'speed':
-                        // Speed implementation could go here
+                        player.moveSpeed = Math.min(player.moveSpeed + 20, 200);
+                        console.log(`Player ${player.playerId} move speed: ${player.moveSpeed}`);
+                        break;
+                    case 'shield':
+                        player.hasShield = true;
+                        player.shieldDuration = 10000; // 10 seconds
+                        console.log(`Player ${player.playerId} got shield for 10 seconds`);
+                        break;
+                    case 'remote':
+                        player.hasRemoteControl = true;
+                        console.log(`Player ${player.playerId} got remote control`);
                         break;
                 }
                 
@@ -1226,6 +1305,10 @@
                         // Start the hold timer
                         this.startBombHoldTimer();
                     }
+                } else if (e.code === 'KeyR') {
+                    e.preventDefault();
+                    // Remote detonation
+                    this.publish(this.viewId, "detonate-remote", {});
                 }
             }
             
@@ -1304,6 +1387,9 @@
             onPowerUpCollected(data) {
                 this.bombsEl.textContent = data.bombCount;
                 this.fireEl.textContent = data.firePower;
+                
+                // Update ability UI
+                this.updateAbilityUI();
             }
             
             onBombHoldingStarted(data) {
@@ -1320,6 +1406,30 @@
             
             onPowerUpCollectedGlobal(data) {
                 // Could add visual feedback here like a popup or animation
+            }
+            
+            updateAbilityUI() {
+                const localPlayer = this.model.players.get(this.viewId);
+                if (!localPlayer) return;
+                
+                const shieldStatus = document.getElementById('shieldStatus');
+                const remoteStatus = document.getElementById('remoteStatus');
+                
+                // Update shield status
+                if (localPlayer.hasShield) {
+                    shieldStatus.style.display = 'block';
+                    shieldStatus.textContent = `🛡️ Shield Active (${Math.ceil(localPlayer.shieldDuration / 1000)}s)`;
+                } else {
+                    shieldStatus.style.display = 'none';
+                }
+                
+                // Update remote control status
+                if (localPlayer.hasRemoteControl) {
+                    remoteStatus.style.display = 'block';
+                    remoteStatus.textContent = '🎮 Remote Control Ready (Press R)';
+                } else {
+                    remoteStatus.style.display = 'none';
+                }
             }
             
             updatePlayerList(players) {
@@ -1370,6 +1480,9 @@
                     this.livesEl.textContent = localPlayer.lives;
                     this.bombsEl.textContent = localPlayer.bombCount;
                     this.fireEl.textContent = localPlayer.firePower;
+                    
+                    // Update ability UI regularly
+                    this.updateAbilityUI();
                 }
                 
                 // Render at 60fps for smooth visuals
