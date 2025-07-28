@@ -1,81 +1,554 @@
 
-<html lang="pt-BR">
-  <head>
-    <meta charset="utf-8">
-    <title>BomberMan Kaboom.js</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bomberman Lobby</title>
+    <script src="https://cdn.jsdelivr.net/npm/@multisynq/client@latest/bundled/multisynq-client.min.js"></script>
     <style>
-      body {
-        margin: 0;
-        padding: 20px;
-        font-family: Arial, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        color: white;
-      }
-      
-      .menu-container {
-        text-align: center;
-        background: rgba(255, 255, 255, 0.1);
-        padding: 40px;
-        border-radius: 15px;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-      }
-      
-      h1 {
-        font-size: 3em;
-        margin-bottom: 30px;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-      }
-      
-      .menu-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-        margin-top: 30px;
-      }
-      
-      .menu-btn {
-        padding: 15px 30px;
-        border: none;
-        border-radius: 10px;
-        font-size: 1.2em;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        background: linear-gradient(45deg, #4CAF50, #45a049);
-        color: white;
-        text-decoration: none;
-        display: inline-block;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-      }
-      
-      .menu-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-      }
-      
-      .multiplayer-btn {
-        background: linear-gradient(45deg, #2196F3, #1976D2);
-      }
-      
-      .singleplayer-btn {
-        background: linear-gradient(45deg, #FF9800, #F57C00);
-      }
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #00ff88;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ccc;
+            font-weight: bold;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            background: #1a1a1a;
+            color: white;
+            font-size: 16px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #00ff88, #00cc6a);
+            color: #000;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.4);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .status.connecting {
+            background: rgba(255, 193, 7, 0.2);
+            color: #FFC107;
+        }
+        
+        .status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+        }
+        
+        .status.error {
+            background: rgba(244, 67, 54, 0.2);
+            color: #F44336;
+        }
+        
+        .session-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .session-id {
+            font-family: monospace;
+            font-size: 18px;
+            color: #00ff88;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        
+        .copy-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .hidden {
+            display: none;
+        }
     </style>
-  </head>
-  <body>
-    <div class="menu-container">
-      <h1>💣 Bomberman</h1>
-      <p>Choose your game mode:</p>
-      
-      <div class="menu-buttons">
-        <a href="multiplayer/lobby.html" class="menu-btn multiplayer-btn">🎮 Multiplayer</a>
-        <a href="singleplayer/singleplayer.html" class="menu-btn singleplayer-btn">👤 Single Player</a>
-      </div>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Bomberman Lobby</h1>
+        
+        <div id="status" class="status connecting">Ready to create or join a game</div>
+        
+        <!-- Setup Section -->
+        <div id="setupSection">
+            <div class="input-group">
+                <label for="playerName">Your Name:</label>
+                <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+            </div>
+            
+            <div class="button-group">
+                <button class="btn-primary" onclick="createGame()">Create Game</button>
+                <button class="btn-secondary" onclick="showJoinSection()">Join Game</button>
+            </div>
+            
+            <div id="joinSection" class="hidden">
+                <div class="input-group">
+                    <label for="sessionId">Session ID:</label>
+                    <input type="text" id="sessionId" placeholder="Enter session ID (e.g., bomberman-abc123)" style="font-family: monospace; font-size: 14px;">
+                </div>
+                <button class="btn-primary" onclick="joinGame()">Join Game</button>
+                <button class="btn-secondary" onclick="hideJoinSection()">Back</button>
+            </div>
+        </div>
+        
+        <!-- Session Info Section -->
+        <div id="sessionSection" class="hidden">
+            <div class="session-info">
+                <h3>Game Session Created!</h3>
+                <div>Session ID:</div>
+                <div class="session-id" id="sessionIdDisplay"></div>
+                <button class="copy-btn" onclick="copySessionId()">Copy Session ID</button>
+                <button class="copy-btn" onclick="copyInviteLink()">Copy Invite Link</button>
+            </div>
+            
+            <div class="button-group">
+                <button class="btn-primary" onclick="startGame()">Start Game</button>
+                <button class="btn-secondary" onclick="leaveSession()">Leave Session</button>
+            </div>
+        </div>
     </div>
-  </body>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
+            appId: 'io.multisynq.bomberman-lobby'
+        };
+        
+        // Global variables
+        let currentSession = null;
+        let currentSessionId = null;
+        let playerName = '';
+        
+        // Generate a session ID
+        function generateSessionId() {
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < 8; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return `bomberman-${result}`;
+        }
+        
+        // Update status display
+        function updateStatus(message, type = 'connecting') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+        
+        // Show/hide sections
+        function showJoinSection() {
+            document.getElementById('joinSection').classList.remove('hidden');
+        }
+        
+        function hideJoinSection() {
+            document.getElementById('joinSection').classList.add('hidden');
+        }
+        
+        // Create a new game session
+        async function createGame() {
+            const name = document.getElementById('playerName').value.trim();
+            if (!name) {
+                alert('Please enter your name');
+                return;
+            }
+            
+            playerName = name;
+            currentSessionId = generateSessionId();
+            
+            try {
+                updateStatus('Creating game session...', 'connecting');
+                
+                // Create lobby session
+                currentSession = await Multisynq.Session.join({
+                    apiKey: CONFIG.apiKey,
+                    appId: CONFIG.appId,
+                    name: currentSessionId,
+                    password: 'bomberman-default',
+                    model: LobbyModel,
+                    view: LobbyView,
+                    viewData: {
+                        playerName: name,
+                        sessionId: currentSessionId,
+                        isHost: true
+                    },
+                    step: "auto"
+                });
+                
+                console.log('Lobby session created successfully:', currentSession.id);
+                updateStatus('Game session created! Ready to start.', 'connected');
+                
+                // Show session info
+                document.getElementById('setupSection').classList.add('hidden');
+                document.getElementById('sessionSection').classList.remove('hidden');
+                document.getElementById('sessionIdDisplay').textContent = currentSessionId;
+                
+            } catch (error) {
+                console.error('Failed to create game session:', error);
+                updateStatus('Failed to create game session. Please try again.', 'error');
+            }
+        }
+        
+        // Join an existing game session
+        async function joinGame() {
+            const name = document.getElementById('playerName').value.trim();
+            const sessionId = document.getElementById('sessionId').value.trim();
+            
+            if (!name) {
+                alert('Please enter your name');
+                return;
+            }
+            
+            if (!sessionId) {
+                alert('Please enter a session ID');
+                return;
+            }
+            
+            playerName = name;
+            currentSessionId = sessionId;
+            
+            try {
+                updateStatus('Joining game session...', 'connecting');
+                
+                // Join lobby session
+                currentSession = await Multisynq.Session.join({
+                    apiKey: CONFIG.apiKey,
+                    appId: CONFIG.appId,
+                    name: sessionId,
+                    password: 'bomberman-default',
+                    model: LobbyModel,
+                    view: LobbyView,
+                    viewData: {
+                        playerName: name,
+                        sessionId: sessionId,
+                        isHost: false
+                    },
+                    step: "auto"
+                });
+                
+                console.log('Joined lobby session successfully:', currentSession.id);
+                updateStatus('Joined game session! Waiting for host to start...', 'connected');
+                
+                // Show session info
+                document.getElementById('setupSection').classList.add('hidden');
+                document.getElementById('sessionSection').classList.remove('hidden');
+                document.getElementById('sessionIdDisplay').textContent = sessionId;
+                
+            } catch (error) {
+                console.error('Failed to join game session:', error);
+                updateStatus('Failed to join game session. Check the session ID.', 'error');
+            }
+        }
+        
+        // Start the game
+        function startGame() {
+            if (!currentSession) return;
+            
+            // Store session info in localStorage for the game
+            localStorage.setItem('bomberman_session', JSON.stringify({
+                sessionId: currentSessionId,
+                playerName: playerName,
+                isHost: true
+            }));
+            
+            // Redirect to the game
+            window.location.href = `multiplayer-bomberman.html#${currentSessionId}`;
+        }
+        
+        // Leave the session
+        function leaveSession() {
+            if (currentSession) {
+                currentSession.exit();
+                currentSession = null;
+            }
+            
+            // Reset UI
+            document.getElementById('setupSection').classList.remove('hidden');
+            document.getElementById('sessionSection').classList.add('hidden');
+            document.getElementById('joinSection').classList.add('hidden');
+            
+            // Clear inputs
+            document.getElementById('playerName').value = '';
+            document.getElementById('sessionId').value = '';
+            
+            updateStatus('Ready to create or join a game', 'connecting');
+        }
+        
+        // Copy session ID to clipboard
+        function copySessionId() {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(currentSessionId).then(() => {
+                    alert('Session ID copied to clipboard!');
+                });
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = currentSessionId;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('Session ID copied to clipboard!');
+            }
+        }
+        
+        // Copy invite link to clipboard
+        function copyInviteLink() {
+            const inviteLink = `${window.location.origin}${window.location.pathname}?session=${currentSessionId}`;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(inviteLink).then(() => {
+                    alert('Invite link copied to clipboard!');
+                });
+            } else {
+                const textArea = document.createElement('textarea');
+                textArea.value = inviteLink;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('Invite link copied to clipboard!');
+            }
+        }
+        
+        // MultiSynq Models
+        class LobbyModel extends Multisynq.Model {
+            init() {
+                this.players = new Map();
+                this._sessionId = null; // Use private property instead of sessionId
+                this.gameStarted = false;
+                this.hostId = null;
+                
+                // Subscribe to events
+                this.subscribe(this.sessionId, "view-join", this.playerJoined);
+                this.subscribe(this.sessionId, "view-exit", this.playerExited);
+                this.subscribe(this.sessionId, "start-game-request", this.handleStartGameRequest);
+                
+                console.log('Lobby Model initialized');
+            }
+            
+            playerJoined(viewInfo) {
+                const viewId = typeof viewInfo === 'string' ? viewInfo : (viewInfo.viewId || viewInfo);
+                const viewData = viewInfo.viewData || {};
+                
+                if (!viewId) {
+                    console.error('Invalid viewInfo received:', viewInfo);
+                    return;
+                }
+                
+                console.log(`Player joined: ${viewId}`, viewData);
+                
+                // Add player to the lobby
+                this.players.set(viewId, {
+                    viewId: viewId,
+                    name: viewData.playerName || 'Player',
+                    isHost: viewData.isHost || false,
+                    joinedAt: this.now()
+                });
+                
+                // Set host if this is the first player
+                if (this.players.size === 1) {
+                    this.hostId = viewId;
+                    this.players.get(viewId).isHost = true;
+                }
+                
+                // Set session ID from first player
+                if (!this._sessionId && viewData.sessionId) {
+                    this._sessionId = viewData.sessionId;
+                }
+                
+                this.updatePlayerList();
+            }
+            
+            playerExited(viewInfo) {
+                const viewId = typeof viewInfo === 'string' ? viewInfo : (viewInfo.viewId || viewInfo);
+                
+                if (!viewId) {
+                    console.error('Invalid viewInfo received on exit:', viewInfo);
+                    return;
+                }
+                
+                console.log(`Player left: ${viewId}`);
+                
+                // Remove player
+                this.players.delete(viewId);
+                
+                // Reassign host if host left
+                if (viewId === this.hostId && this.players.size > 0) {
+                    const newHost = Array.from(this.players.values())[0];
+                    this.hostId = newHost.viewId;
+                    newHost.isHost = true;
+                }
+                
+                this.updatePlayerList();
+            }
+            
+            updatePlayerList() {
+                const playerData = Array.from(this.players.values()).map(p => ({
+                    viewId: p.viewId,
+                    name: p.name,
+                    isHost: p.isHost
+                }));
+                
+                this.publish(this.sessionId, "player-list-updated", {
+                    players: playerData,
+                    hostId: this.hostId,
+                    sessionId: this._sessionId
+                });
+            }
+            
+            handleStartGameRequest(data) {
+                console.log('Game starting:', data);
+                // This will be handled by the view
+            }
+        }
+        LobbyModel.register("LobbyModel");
+        
+        class LobbyView extends Multisynq.View {
+            constructor(model) {
+                super(model);
+                this.model = model;
+                this.setupSubscriptions();
+            }
+            
+            setupSubscriptions() {
+                this.subscribe(this.sessionId, "player-list-updated", this.onPlayerListUpdated);
+                this.subscribe(this.sessionId, "start-game", this.onGameStarting);
+            }
+            
+            onPlayerListUpdated(data) {
+                console.log('Player list updated:', data);
+                // Could update UI here if needed
+            }
+            
+            onGameStarting(data) {
+                console.log('Game is starting!', data);
+                // This would be called when the game starts
+            }
+        }
+        
+        // Register the view class
+        if (typeof LobbyView.register === 'function') {
+            LobbyView.register("LobbyView");
+        } else {
+            console.warn('LobbyView.register not available, using alternative registration');
+        }
+        
+        // Handle session ID from URL parameter
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('session');
+            
+            if (sessionId) {
+                document.getElementById('sessionId').value = sessionId;
+                showJoinSection();
+            }
+        });
+        
+        // Handle session ID input formatting
+        document.getElementById('sessionId').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toLowerCase();
+        });
+        
+        console.log('🎮 Bomberman Lobby initialized');
+    </script>
+</body>
 </html>
