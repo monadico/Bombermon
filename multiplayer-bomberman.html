@@ -741,7 +741,7 @@
                 };
             }
             
-            placeBomb() {
+            placeBomb(data = {}) {
                 if (!this.isAlive || this.game.gameOver) return;
                 
                 const now = this.now();
@@ -753,9 +753,11 @@
                     return;
                 }
                 
-                // If player has throw bomb ability, automatically throw
+                // If player has throw bomb ability, automatically throw with dynamic distance
                 if (this.hasThrowBomb) {
-                    this.autoThrowBomb();
+                    // Pass hold duration for throw distance calculation
+                    const holdDuration = data.holdDuration || 0;
+                    this.autoThrowBomb(holdDuration);
                     return;
                 }
                 
@@ -784,66 +786,88 @@
                 this.lastBombTime = now;
             }
             
-            autoThrowBomb() {
+            autoThrowBomb(holdDuration = 0) {
                 const now = this.now();
+                
+                // Calculate throw distance based on hold time (0.5s to 2.5s)
+                const holdTime = Math.min(holdDuration, 2500);
+                const minDistance = 1; // Minimum 1 tile
+                const maxDistance = 8; // Maximum 8 tiles
+                const distance = Math.floor(minDistance + (holdTime / 2500) * (maxDistance - minDistance));
                 
                 // Calculate throw direction based on last movement direction
                 let throwPos = { ...this.pos };
                 
                 switch(this.lastDirection) {
                     case 'up':
-                        throwPos.y -= TILE_SIZE * 3; // Throw 3 tiles up
+                        throwPos.y -= TILE_SIZE * distance;
                         break;
                     case 'down':
-                        throwPos.y += TILE_SIZE * 3; // Throw 3 tiles down
+                        throwPos.y += TILE_SIZE * distance;
                         break;
                     case 'left':
-                        throwPos.x -= TILE_SIZE * 3; // Throw 3 tiles left
+                        throwPos.x -= TILE_SIZE * distance;
                         break;
                     case 'right':
-                        throwPos.x += TILE_SIZE * 3; // Throw 3 tiles right
+                        throwPos.x += TILE_SIZE * distance;
                         break;
                 }
                 
-                // Snap to grid
-                throwPos = this.game.snapToGrid(throwPos);
+                // Find the closest valid position for the throw
+                const validThrowPos = this.findValidThrowPosition(throwPos);
                 
-                // Check if position is valid
-                if (this.game.isValidPosition(throwPos, this)) {
-                    // Create and place the bomb at throw position
-                    if (this.hasRemoteControl) {
-                        this.placeRemoteBomb(throwPos);
-                    } else {
-                        BombModel.create({
-                            position: throwPos,
-                            owner: this,
-                            firePower: this.firePower
-                        });
-                    }
-                    
-                    console.log(`Player ${this.playerId} auto-threw bomb to (${throwPos.x}, ${throwPos.y})`);
-                    
-                    // Publish to view for visual feedback
-                    this.publish(this.viewId, "bomb-auto-thrown", {
-                        playerId: this.playerId,
-                        throwPosition: throwPos
-                    });
+                // Create and place the bomb at the valid throw position
+                if (this.hasRemoteControl) {
+                    this.placeRemoteBomb(validThrowPos);
                 } else {
-                    // If throw position is invalid, place at current position
-                    const bombPos = this.game.snapToGrid(this.pos);
-                    if (this.hasRemoteControl) {
-                        this.placeRemoteBomb(bombPos);
-                    } else {
-                        BombModel.create({
-                            position: bombPos,
-                            owner: this,
-                            firePower: this.firePower
-                        });
-                    }
-                    console.log(`Player ${this.playerId} auto-threw bomb to current position (invalid throw)`);
+                    BombModel.create({
+                        position: validThrowPos,
+                        owner: this,
+                        firePower: this.firePower
+                    });
                 }
                 
+                console.log(`Player ${this.playerId} auto-threw bomb to (${validThrowPos.x}, ${validThrowPos.y}) - distance: ${distance} tiles`);
+                
+                // Publish to view for visual feedback
+                this.publish(this.viewId, "bomb-auto-thrown", {
+                    playerId: this.playerId,
+                    throwPosition: validThrowPos,
+                    distance: distance
+                });
+                
                 this.lastBombTime = now;
+            }
+            
+            findValidThrowPosition(targetPos) {
+                const startPos = this.game.snapToGrid(this.pos);
+                const direction = {
+                    x: Math.sign(targetPos.x - startPos.x),
+                    y: Math.sign(targetPos.y - startPos.y)
+                };
+                
+                // Check each position from start to target, find the last valid one
+                let lastValidPos = startPos;
+                
+                for (let i = 1; i <= Math.max(Math.abs(targetPos.x - startPos.x), Math.abs(targetPos.y - startPos.y)) / TILE_SIZE; i++) {
+                    const checkPos = {
+                        x: startPos.x + (direction.x * TILE_SIZE * i),
+                        y: startPos.y + (direction.y * TILE_SIZE * i)
+                    };
+                    
+                    // Snap to grid
+                    const gridPos = this.game.snapToGrid(checkPos);
+                    
+                    // Check if position is valid
+                    if (this.game.isValidPosition(gridPos, this)) {
+                        lastValidPos = gridPos;
+                    } else {
+                        // Found a wall/block, stop here
+                        break;
+                    }
+                }
+                
+                return lastValidPos;
             }
             
             placeRemoteBomb(bombPos) {
@@ -1012,20 +1036,11 @@
             updateHeldBomb() {
                 if (!this.isHoldingBomb || !this.heldBomb) return;
                 
-                const now = this.now();
-                const holdTime = now - this.bombHoldStartTime;
-                
                 // Update held bomb position to follow player
                 this.heldBomb.pos = { ...this.pos };
                 
-                // Check if bomb should explode while being held
-                if (holdTime >= BOMB_TIMER) {
-                    console.log(`Player ${this.playerId} died holding bomb!`);
-                    this.takeDamage(); // Player takes damage from held bomb
-                    this.isHoldingBomb = false;
-                    this.heldBomb = null;
-                    this.bombHoldStartTime = 0;
-                }
+                // Disable death mechanism for held bombs - they should only explode when placed
+                // The bomb timer will start when the bomb is placed on the ground
             }
             
             takeDamage() {
@@ -1504,12 +1519,20 @@
                     if (this.spacePressed) {
                         const holdDuration = Date.now() - this.spacePressStartTime;
                         
-                        if (holdDuration >= 2500) {
-                            // Long press - throw the bomb
-                            this.publish(this.viewId, "throw-held-bomb", {});
+                        // Check if player has throw bomb ability
+                        const localPlayer = this.model.players.get(this.viewId);
+                        if (localPlayer && localPlayer.hasThrowBomb) {
+                            // Use dynamic throw distance based on hold time
+                            this.publish(this.viewId, "place-bomb", { holdDuration: holdDuration });
                         } else {
-                            // Short press - place bomb normally
-                            this.publish(this.viewId, "place-bomb", {});
+                            // Normal bomb placement logic
+                            if (holdDuration >= 2500) {
+                                // Long press - throw the bomb
+                                this.publish(this.viewId, "throw-held-bomb", {});
+                            } else {
+                                // Short press - place bomb normally
+                                this.publish(this.viewId, "place-bomb", {});
+                            }
                         }
                         
                         this.spacePressed = false;
@@ -1529,7 +1552,14 @@
                 // Clear any existing timer
                 this.clearBombHoldTimer();
                 
-                // Start new timer
+                // Check if player has throw bomb ability - if so, don't use old holding mechanism
+                const localPlayer = this.model.players.get(this.viewId);
+                if (localPlayer && localPlayer.hasThrowBomb) {
+                    // For throw bomb ability, we don't need the old holding timer
+                    return;
+                }
+                
+                // Start new timer for normal players
                 this.bombHoldTimer = setTimeout(() => {
                     if (this.spacePressed) {
                         // Space has been held for 2.5 seconds, start holding bomb
@@ -1590,7 +1620,8 @@
             }
             
             onBombAutoThrown(data) {
-                this.gameStatusEl.textContent = '💣 Auto-threw bomb!';
+                const distance = data.distance || 1;
+                this.gameStatusEl.textContent = `💣 Auto-threw bomb ${distance} tiles!`;
                 // Reset status after a short delay
                 setTimeout(() => {
                     this.gameStatusEl.textContent = 'Game Started! Fight!';
@@ -1645,7 +1676,7 @@
                 // Update throw bomb status
                 if (localPlayer.hasThrowBomb) {
                     throwStatus.style.display = 'block';
-                    throwStatus.textContent = '💣 Throw Bomb Active - Press Space';
+                    throwStatus.textContent = '💣 Throw Bomb Active - Hold Space for distance';
                 } else {
                     throwStatus.style.display = 'none';
                 }
