@@ -130,6 +130,12 @@
     </style>
 </head>
 <body>
+    <!-- Background Music -->
+    <audio id="backgroundMusic" loop>
+        <source src="8-bit-retro-game-music-233964.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    
     <div id="gameWrapper">
         <h1>🎮 Multiplayer Bomberman</h1>
         
@@ -138,6 +144,7 @@
             <div>Bombs: <span id="bombs">1</span></div>
             <div>Fire Power: <span id="fire">1</span></div>
             <div id="gameStatus">Initializing...</div>
+            <div>🎵 <button id="musicToggle" style="background: #00ff88; color: #000; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">Music: ON</button></div>
         </div>
         
         <div id="gameContainer">
@@ -1575,8 +1582,56 @@
             }
         }
         
+        // Background Music Management
+        let backgroundMusic;
+        let isMusicPlaying = true;
+        
+        function initializeMusic() {
+            backgroundMusic = document.getElementById('backgroundMusic');
+            
+            // Set volume to a reasonable level
+            backgroundMusic.volume = 0.3;
+            
+            // Start playing when user interacts (browser autoplay policy)
+            const startMusic = () => {
+                if (isMusicPlaying && backgroundMusic.paused) {
+                    backgroundMusic.play().catch(e => {
+                        console.log('Could not autoplay music:', e);
+                    });
+                }
+                // Remove event listeners after first interaction
+                document.removeEventListener('click', startMusic);
+                document.removeEventListener('keydown', startMusic);
+            };
+            
+            // Add event listeners for user interaction
+            document.addEventListener('click', startMusic);
+            document.addEventListener('keydown', startMusic);
+            
+            // Music toggle functionality
+            const musicToggle = document.getElementById('musicToggle');
+            musicToggle.addEventListener('click', () => {
+                if (isMusicPlaying) {
+                    backgroundMusic.pause();
+                    isMusicPlaying = false;
+                    musicToggle.textContent = 'Music: OFF';
+                    musicToggle.style.background = '#ff4444';
+                } else {
+                    backgroundMusic.play();
+                    isMusicPlaying = true;
+                    musicToggle.textContent = 'Music: ON';
+                    musicToggle.style.background = '#00ff88';
+                }
+            });
+            
+            console.log('Background music initialized');
+        }
+        
         // Start the game
         function startGame() {
+            // Initialize background music
+            initializeMusic();
+            
             document.getElementById('gameStatus').textContent = 'Connecting to MultiSynq...';
             
             // Get session info from URL hash or localStorage
