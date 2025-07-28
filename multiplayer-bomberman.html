@@ -428,6 +428,9 @@
                     isAlive: p.isAlive
                 }));
                 this.publish(this.sessionId, "player-list-updated", { players: playerData });
+                
+                // Debug: Log current state
+                console.log(`Game state: ${this.destructibleBlocks.size} destructible blocks, ${this.powerUps.size} power-ups`);
             }
             
             restartGame() {
@@ -521,8 +524,9 @@
                 const cell = LEVEL_MAP[gridY].charAt(gridX);
                 if (cell === 'a') return false; // Steel wall
                 if (cell === 'z' && this.destructibleBlocks.has(`${gridX},${gridY}`)) {
-                    return false; // Brick wall
+                    return false; // Brick wall (only if it still exists)
                 }
+                // If cell is 'z' but block doesn't exist in destructibleBlocks, it's walkable (green tile)
                 
                 // Check for bombs
                 for (const bomb of this.bombs) {
@@ -963,13 +967,17 @@
                     const blockKey = `${gridX},${gridY}`;
                     
                     if (this.game.destructibleBlocks.has(blockKey)) {
+                        console.log(`Destroying block at (${gridX}, ${gridY})`);
                         this.game.destructibleBlocks.delete(blockKey);
+                        console.log(`Remaining blocks: ${this.game.destructibleBlocks.size}`);
                         
                         // Spawn power-up chance (30% chance)
                         const spawnChance = this.random();
                         if (spawnChance < 0.3) {
                             PowerUpModel.create({ position: { x: gridX * TILE_SIZE, y: gridY * TILE_SIZE } });
                         }
+                    } else {
+                        console.log(`Block at (${gridX}, ${gridY}) was already destroyed or doesn't exist`);
                     }
                     
                     // Damage players
@@ -1393,13 +1401,39 @@
                                 ctx.fillStyle = '#666';
                                 ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE);
                             }
-                        } else if (cell === 'z' && this.model.destructibleBlocks.has(`${x},${y}`)) {
-                            // Destructible brick
-                            if (sprites['brick-red']) {
-                                ctx.drawImage(sprites['brick-red'], posX, posY, TILE_SIZE, TILE_SIZE);
+                        } else if (cell === 'z') {
+                            // Check if this destructible block still exists
+                            const blockKey = `${x},${y}`;
+                            if (this.model.destructibleBlocks.has(blockKey)) {
+                                // Render the original brick block
+                                if (sprites['brick-red']) {
+                                    ctx.drawImage(sprites['brick-red'], posX, posY, TILE_SIZE, TILE_SIZE);
+                                } else {
+                                    ctx.fillStyle = '#a52a2a';
+                                    ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE);
+                                }
                             } else {
-                                ctx.fillStyle = '#a52a2a';
+                                // Block was destroyed - render green tile instead
+                                ctx.fillStyle = '#228B22'; // Forest green color
                                 ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE);
+                                
+                                // Add a subtle pattern to make it look like grass/tile
+                                ctx.fillStyle = '#32CD32'; // Lime green for pattern
+                                ctx.fillRect(posX + 2, posY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                                
+                                // Add some texture dots
+                                ctx.fillStyle = '#228B22';
+                                for (let i = 0; i < 4; i++) {
+                                    for (let j = 0; j < 4; j++) {
+                                        if ((i + j) % 2 === 0) {
+                                            ctx.fillRect(
+                                                posX + 4 + i * 8, 
+                                                posY + 4 + j * 8, 
+                                                4, 4
+                                            );
+                                        }
+                                    }
+                                }
                             }
                         }
                     });
