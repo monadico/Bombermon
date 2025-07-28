@@ -196,7 +196,6 @@
                 img.onload = () => {
                     sprites[sprite.name] = img;
                     spritesLoaded++;
-                    console.log(`Loaded sprite: ${sprite.name} (${spritesLoaded}/${totalSprites})`);
                     
                     if (spritesLoaded === totalSprites) {
                         console.log('All sprites loaded!');
@@ -360,7 +359,7 @@
                 this.subscribe(this.sessionId, "view-exit", this.playerExited);
                 this.subscribe(this.sessionId, "restart-game", this.restartGame);
                 
-                // Start main loop
+                // Start main loop at 20fps for better performance
                 this.mainLoop();
             }
             
@@ -383,8 +382,6 @@
                     { x: TILE_SIZE * 18, y: TILE_SIZE * 13 }          // Bottom-right
                 ];
                 
-                console.log(`Creating player ${playerId} with viewId: ${viewId}`);
-                
                 try {
                     const player = PlayerModel.create({
                         viewId: viewId,
@@ -393,7 +390,6 @@
                     });
                     
                     this.players.set(viewId, player);
-                    console.log(`Player ${playerId} added successfully. Total players: ${this.players.size}`);
                 } catch (error) {
                     console.error('Failed to create player:', error);
                     return; // Don't continue if player creation failed
@@ -486,19 +482,7 @@
                     for (const bomb of this.bombs) {
                         if (bomb && bomb.update) {
                             bomb.update();
-                        } else {
-                            // Debug: log when bomb update is not available
-                            if (bomb && Math.random() < 0.1) {
-                                console.log('Bomb missing update method:', bomb);
-                                console.log('Bomb has update method:', typeof bomb.update);
-                                console.log('Bomb constructor:', bomb.constructor.name);
-                            }
                         }
-                    }
-                    
-                    // Debug: log bomb count occasionally
-                    if (this.bombs.size > 0 && Math.random() < 0.1) {
-                        console.log('Game loop - bombs count:', this.bombs.size);
                     }
                     
                     for (const explosion of this.explosions) {
@@ -511,7 +495,8 @@
                     this.checkWinCondition();
                 }
                 
-                this.future(16).mainLoop(); // ~60fps
+                // Run at 20fps for better performance (50ms intervals)
+                this.future(50).mainLoop();
             }
             
             checkWinCondition() {
@@ -859,8 +844,8 @@
             update() {
                 if (!this.isAlive) return;
                 
-                // Update animation
-                this.animationTimer += 16;
+                // Update animation at 20fps instead of 60fps
+                this.animationTimer += 50;
                 if (this.animationTimer > 150) { // Animation speed
                     this.animationTimer = 0;
                     const animData = animations[this.currentAnimation];
@@ -895,7 +880,6 @@
                     
                     // Use grid-based collision detection for more reliable collection
                     if (playerGridX === powerUpGridX && playerGridY === powerUpGridY) {
-                        console.log(`Player ${this.playerId} collecting power-up ${powerUp.type} at (${powerUpGridX}, ${powerUpGridY})`);
                         powerUp.collect(this);
                         break; // Only collect one power-up per update
                     }
@@ -914,16 +898,11 @@
                 this.animationFrame = 0;
                 this.animationTimer = 0;
                 
-                console.log('BombModel created with update method:', typeof this.update);
-                
                 // Only add to game bombs if not held
                 if (!this.isHeld) {
                     this.game.bombs.add(this);
                     this.countdown();
-                    this.startAnimation(); // Start the animation
-                    console.log('Bomb added to game bombs set. Total bombs:', this.game.bombs.size);
-                } else {
-                    console.log('Bomb created as held bomb (not added to game set)');
+                    this.startAnimation();
                 }
             }
             
@@ -950,23 +929,16 @@
                 this.animationTimer += bombAnimation.frameDuration;
                 this.animationFrame = (this.animationFrame + 1) % bombAnimation.frames.length;
                 
-                console.log('Bomb animation frame changed to:', this.animationFrame);
-                
                 // Schedule next animation update
                 this.future(bombAnimation.frameDuration).updateAnimation();
             }
             
             update() {
-                // Debug: log every update call
-                console.log('Bomb update called - animationFrame:', this.animationFrame, 'timer:', this.timer);
-                
                 // Update bomb animation using time-based frame cycling
-                this.animationTimer += 16; // Assuming 60fps (16ms per frame)
+                this.animationTimer += 50; // Assuming 20fps (50ms per frame)
                 if (this.animationTimer > bombAnimation.frameDuration) {
                     this.animationTimer = 0;
                     this.animationFrame = (this.animationFrame + 1) % bombAnimation.frames.length;
-                    
-                    console.log('Bomb animation frame changed to:', this.animationFrame);
                 }
             }
             
@@ -985,13 +957,10 @@
                     
                     if (this.game.destructibleBlocks.has(blockKey)) {
                         this.game.destructibleBlocks.delete(blockKey);
-                        console.log(`Destroyed block at (${gridX}, ${gridY})`);
                         
                         // Spawn power-up chance (30% chance)
                         const spawnChance = this.random();
-                        console.log(`Power-up spawn chance: ${spawnChance}`);
                         if (spawnChance < 0.3) {
-                            console.log(`Spawning power-up at (${gridX}, ${gridY})`);
                             PowerUpModel.create({ position: { x: gridX * TILE_SIZE, y: gridY * TILE_SIZE } });
                         }
                     }
@@ -1046,14 +1015,6 @@
                 
                 return positions;
             }
-            
-            update() {
-                this.animationTimer += 16;
-                if (this.animationTimer > 200) {
-                    this.animationTimer = 0;
-                    this.animationFrame = (this.animationFrame + 1) % 3;
-                }
-            }
         }
         BombModel.register("BombModel");
         
@@ -1102,20 +1063,15 @@
             }
             
             collect(player) {
-                console.log(`Power-up ${this.type} collected by player ${player.playerId}`);
-                
                 switch(this.type) {
                     case 'bomb':
                         player.bombCount++;
-                        console.log(`Player ${player.playerId} bomb count: ${player.bombCount}`);
                         break;
                     case 'fire':
                         player.firePower++;
-                        console.log(`Player ${player.playerId} fire power: ${player.firePower}`);
                         break;
                     case 'speed':
                         // Speed implementation could go here
-                        console.log(`Player ${player.playerId} collected speed power-up`);
                         break;
                 }
                 
@@ -1153,6 +1109,9 @@
                 // Create LobbyRelayView for lobby communication
                 this.lobbyRelay = new LobbyRelayView(this.wellKnownModel("lobbyRelay"));
                 
+                // Add view-side animation smoothing
+                this.smoothing = new WeakMap();
+                
                 this.subscribe(this.sessionId, "game-started", this.onGameStarted);
                 this.subscribe(this.sessionId, "game-over", this.onGameOver);
                 this.subscribe(this.sessionId, "player-list-updated", this.onPlayerListUpdated);
@@ -1163,6 +1122,38 @@
                 this.subscribe(this.viewId, "bomb-thrown", this.onBombThrown);
                 
                 this.render();
+            }
+            
+            // Add view-side animation smoothing
+            smoothPos(obj) {
+                if (!this.smoothing.has(obj)) {
+                    this.smoothing.set(obj, { x: obj.pos.x, y: obj.pos.y });
+                }
+                const smoothed = this.smoothing.get(obj);
+                const dx = obj.pos.x - smoothed.x;
+                const dy = obj.pos.y - smoothed.y;
+                
+                // If distance is large, don't smooth but jump to new position
+                if (Math.abs(dx) < 50) smoothed.x += dx * 0.3; else smoothed.x = obj.pos.x;
+                if (Math.abs(dy) < 50) smoothed.y += dy * 0.3; else smoothed.y = obj.pos.y;
+                
+                return smoothed;
+            }
+            
+            smoothPlayerPos(player) {
+                if (!this.smoothing.has(player)) {
+                    this.smoothing.set(player, { x: player.pos.x, y: player.pos.y });
+                }
+                const smoothed = this.smoothing.get(player);
+                const currentPos = player.getCurrentPosition();
+                const dx = currentPos.x - smoothed.x;
+                const dy = currentPos.y - smoothed.y;
+                
+                // If distance is large, don't smooth but jump to new position
+                if (Math.abs(dx) < 50) smoothed.x += dx * 0.3; else smoothed.x = currentPos.x;
+                if (Math.abs(dy) < 50) smoothed.y += dy * 0.3; else smoothed.y = currentPos.y;
+                
+                return smoothed;
             }
             
             setupInput() {
@@ -1265,19 +1256,15 @@
             }
             
             onPowerUpCollected(data) {
-                console.log('Power-up collected by me:', data);
                 this.bombsEl.textContent = data.bombCount;
                 this.fireEl.textContent = data.firePower;
             }
             
             onBombHoldingStarted(data) {
-                console.log('Started holding bomb:', data);
-                // Could add visual feedback here like a warning sound or UI indicator
                 this.gameStatusEl.textContent = '⚠️ Holding bomb! Press SPACE to throw!';
             }
             
             onBombThrown(data) {
-                console.log('Bomb thrown:', data);
                 this.gameStatusEl.textContent = '💣 Bomb thrown!';
                 // Reset status after a short delay
                 setTimeout(() => {
@@ -1286,7 +1273,6 @@
             }
             
             onPowerUpCollectedGlobal(data) {
-                console.log('Power-up collected globally:', data);
                 // Could add visual feedback here like a popup or animation
             }
             
@@ -1328,6 +1314,7 @@
                     this.fireEl.textContent = localPlayer.firePower;
                 }
                 
+                // Render at 60fps for smooth visuals
                 this.render();
             }
             
@@ -1440,11 +1427,6 @@
                     const srcX = frameIndex * frameWidth;
                     const srcY = 0;
                     
-                    // Debug: log animation frame occasionally
-                    if (Math.random() < 0.01) { // 1% chance to log
-                        console.log('Bomb render - frame:', frameIndex, 'animationFrame:', bomb.animationFrame, 'time:', Date.now());
-                    }
-                    
                     ctx.drawImage(
                         sprites.bomb,
                         srcX, srcY, frameWidth, spriteHeight,
@@ -1492,7 +1474,8 @@
                 for (const player of this.model.players.values()) {
                     if (!player.isAlive) continue;
                     
-                    const currentPos = player.getCurrentPosition();
+                    // Use smoothed position for rendering
+                    const smoothedPos = this.smoothPlayerPos(player);
                     
                     if (sprites.bomberman) {
                         // Calculate sprite frame
@@ -1507,20 +1490,20 @@
                         ctx.drawImage(
                             sprites.bomberman,
                             srcX, srcY, spriteWidth, spriteHeight,
-                            currentPos.x + offsetX, currentPos.y + offsetY, TILE_SIZE, TILE_SIZE
+                            smoothedPos.x + offsetX, smoothedPos.y + offsetY, TILE_SIZE, TILE_SIZE
                         );
                     } else {
                         // Fallback colored rectangles
                         const colors = ['#fff', '#ff0', '#0ff', '#f0f'];
                         ctx.fillStyle = colors[player.playerId % 4];
-                        ctx.fillRect(currentPos.x + offsetX + 2, currentPos.y + offsetY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                        ctx.fillRect(smoothedPos.x + offsetX + 2, smoothedPos.y + offsetY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
                     }
                     
                     // Highlight local player
                     if (player.viewId === this.viewId) {
                         ctx.strokeStyle = '#0f0';
                         ctx.lineWidth = 2;
-                        ctx.strokeRect(currentPos.x + offsetX - 2, currentPos.y + offsetY - 2, TILE_SIZE + 4, TILE_SIZE + 4);
+                        ctx.strokeRect(smoothedPos.x + offsetX - 2, smoothedPos.y + offsetY - 2, TILE_SIZE + 4, TILE_SIZE + 4);
                     }
                 }
             }
