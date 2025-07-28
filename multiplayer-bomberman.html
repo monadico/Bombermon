@@ -623,7 +623,8 @@
                 const { direction } = data;
                 const now = this.now();
                 
-                if (now - this.lastMoveTime < 160) return; // Rate limiting
+                // Reduced rate limiting for faster response
+                if (now - this.lastMoveTime < 120) return; // Reduced from 160ms to 120ms
                 
                 const targetPos = this.calculateTargetPosition(direction);
                 
@@ -655,7 +656,8 @@
             interpolateMovement() {
                 if (!this.isMoving) return;
                 
-                this.moveProgress += 0.15;
+                // Faster movement interpolation for more responsive feel
+                this.moveProgress += 0.18; // Increased from 0.15 to 0.18
                 
                 if (this.moveProgress >= 1.0) {
                     this.pos = this.targetPos;
@@ -663,7 +665,8 @@
                     this.moveProgress = 0;
                     this.currentAnimation = `idle${this.lastDirection.charAt(0).toUpperCase() + this.lastDirection.slice(1)}`;
                 } else {
-                    this.future(16).interpolateMovement();
+                    // Slightly faster interpolation steps
+                    this.future(14).interpolateMovement(); // Reduced from 16ms to 14ms
                 }
             }
             
@@ -1149,9 +1152,13 @@
                 const dx = currentPos.x - smoothed.x;
                 const dy = currentPos.y - smoothed.y;
                 
+                // More responsive smoothing for local player
+                const isLocalPlayer = player.viewId === this.viewId;
+                const smoothingFactor = isLocalPlayer ? 0.4 : 0.3; // Slightly faster smoothing for local player
+                
                 // If distance is large, don't smooth but jump to new position
-                if (Math.abs(dx) < 50) smoothed.x += dx * 0.3; else smoothed.x = currentPos.x;
-                if (Math.abs(dy) < 50) smoothed.y += dy * 0.3; else smoothed.y = currentPos.y;
+                if (Math.abs(dx) < 50) smoothed.x += dx * smoothingFactor; else smoothed.x = currentPos.x;
+                if (Math.abs(dy) < 50) smoothed.y += dy * smoothingFactor; else smoothed.y = currentPos.y;
                 
                 return smoothed;
             }
@@ -1161,6 +1168,7 @@
                 document.addEventListener('keyup', (e) => this.handleKeyUp(e));
                 
                 this.pressedKeys = new Set();
+                this.lastInputTime = 0;
             }
             
             handleKeyDown(e) {
@@ -1292,22 +1300,34 @@
             }
             
             update() {
-                // Handle continuous movement
-                if (this.pressedKeys.has('ArrowLeft') || this.pressedKeys.has('KeyA')) {
-                    this.publishMove('left');
-                }
-                if (this.pressedKeys.has('ArrowRight') || this.pressedKeys.has('KeyD')) {
-                    this.publishMove('right');
-                }
-                if (this.pressedKeys.has('ArrowUp') || this.pressedKeys.has('KeyW')) {
-                    this.publishMove('up');
-                }
-                if (this.pressedKeys.has('ArrowDown') || this.pressedKeys.has('KeyS')) {
-                    this.publishMove('down');
+                // Handle continuous movement with input buffering
+                const now = Date.now();
+                const localPlayer = this.model.players.get(this.viewId);
+                
+                // Process input buffer for smoother movement
+                if (localPlayer && localPlayer.isAlive && !localPlayer.isMoving && this.pressedKeys.size > 0) {
+                    // Prioritize the most recent key press
+                    const keys = Array.from(this.pressedKeys);
+                    const lastKey = keys[keys.length - 1];
+                    
+                    let direction = null;
+                    if (lastKey === 'ArrowLeft' || lastKey === 'KeyA') {
+                        direction = 'left';
+                    } else if (lastKey === 'ArrowRight' || lastKey === 'KeyD') {
+                        direction = 'right';
+                    } else if (lastKey === 'ArrowUp' || lastKey === 'KeyW') {
+                        direction = 'up';
+                    } else if (lastKey === 'ArrowDown' || lastKey === 'KeyS') {
+                        direction = 'down';
+                    }
+                    
+                    if (direction && now - this.lastInputTime > 80) { // Input buffering
+                        this.publishMove(direction);
+                        this.lastInputTime = now;
+                    }
                 }
                 
                 // Update local player UI
-                const localPlayer = this.model.players.get(this.viewId);
                 if (localPlayer) {
                     this.livesEl.textContent = localPlayer.lives;
                     this.bombsEl.textContent = localPlayer.bombCount;
