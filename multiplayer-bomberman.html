@@ -158,6 +158,9 @@
             <div id="abilities" style="margin-top: 5px; font-size: 12px;">
                 <div id="shieldStatus" style="display: none; color: #00ffff;">🛡️ Shield Active</div>
                 <div id="remoteStatus" style="display: none; color: #ff00ff;">🎮 Remote Control Ready</div>
+                <div style="margin-top: 5px; font-size: 10px; opacity: 0.8;">
+                    <div>💛 Bomb | 🧡 Fire | 💚 Speed | 💙 Shield | 💜 Remote</div>
+                </div>
             </div>
             <div>🎵 <button id="musicToggle" style="background: #00ff88; color: #000; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">Music: ON</button></div>
         </div>
@@ -1610,9 +1613,35 @@
                     if (sprites[spriteName]) {
                         ctx.drawImage(sprites[spriteName], powerUp.pos.x + offsetX, powerUp.pos.y + offsetY, TILE_SIZE, TILE_SIZE);
                     } else {
-                        // Fallback
-                        ctx.fillStyle = powerUp.type === 'bomb' ? '#ff0' : powerUp.type === 'fire' ? '#f80' : '#0f0';
+                        // Color-coded fallback for different powerup types
+                        let powerupColor;
+                        switch(powerUp.type) {
+                            case 'bomb':
+                                powerupColor = '#ffff00'; // Yellow
+                                break;
+                            case 'fire':
+                                powerupColor = '#ff8000'; // Orange
+                                break;
+                            case 'speed':
+                                powerupColor = '#00ff00'; // Green
+                                break;
+                            case 'shield':
+                                powerupColor = '#00ffff'; // Cyan
+                                break;
+                            case 'remote':
+                                powerupColor = '#ff00ff'; // Magenta
+                                break;
+                            default:
+                                powerupColor = '#ffffff'; // White
+                        }
+                        ctx.fillStyle = powerupColor;
                         ctx.fillRect(powerUp.pos.x + offsetX + 4, powerUp.pos.y + offsetY + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                        
+                        // Add powerup type indicator
+                        ctx.fillStyle = '#000';
+                        ctx.font = '8px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(powerUp.type.toUpperCase().charAt(0), powerUp.pos.x + offsetX + TILE_SIZE/2, powerUp.pos.y + offsetY + TILE_SIZE/2 + 3);
                     }
                 }
             }
@@ -1724,7 +1753,45 @@
                         ctx.lineWidth = 2;
                         ctx.strokeRect(smoothedPos.x + offsetX - 2, smoothedPos.y + offsetY - 2, TILE_SIZE + 4, TILE_SIZE + 4);
                     }
+                    
+                    // Draw ability indicators above player
+                    this.renderPlayerAbilityIndicator(player, smoothedPos, offsetX, offsetY);
                 }
+            }
+            
+            renderPlayerAbilityIndicator(player, pos, offsetX, offsetY) {
+                const centerX = pos.x + offsetX + TILE_SIZE / 2;
+                const centerY = pos.y + offsetY - 10; // Position above player
+                
+                // Draw shield indicator
+                if (player.hasShield) {
+                    this.drawStar(centerX, centerY, '#00ffff', '🛡️');
+                }
+                
+                // Draw remote control indicator
+                if (player.hasRemoteControl) {
+                    this.drawStar(centerX, centerY + 15, '#ff00ff', '🎮');
+                }
+            }
+            
+            drawStar(x, y, color, symbol) {
+                // Draw a colored background circle
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw a border
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Draw the symbol
+                ctx.fillStyle = '#000';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(symbol, x, y);
             }
             
             detach() {
