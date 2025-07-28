@@ -158,8 +158,9 @@
             <div id="abilities" style="margin-top: 5px; font-size: 12px;">
                 <div id="shieldStatus" style="display: none; color: #00ffff;">🛡️ Shield Active</div>
                 <div id="remoteStatus" style="display: none; color: #ff00ff;">🎮 Remote Control Ready</div>
+                <div id="throwStatus" style="display: none; color: #ff8800;">💣 Throw Bomb Active</div>
                 <div style="margin-top: 5px; font-size: 10px; opacity: 0.8;">
-                    <div>💛 Bomb | 🧡 Fire | 💚 Speed | 💙 Shield | 💜 Remote</div>
+                    <div>💛 Bomb | 🧡 Fire | 💚 Speed | 💙 Shield | 💜 Remote | 🧡 Throw</div>
                 </div>
             </div>
             <div>🎵 <button id="musicToggle" style="background: #00ff88; color: #000; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">Music: ON</button></div>
@@ -175,7 +176,7 @@
         </div>
         
         <div id="controls">
-            <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Hold Spacebar to throw bomb • R key for remote detonation • Share this URL to play with friends!
+            <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Hold Spacebar to throw bomb • R key for remote detonation (max 2 bombs) • Share this URL to play with friends!
         </div>
     </div>
 
@@ -621,6 +622,8 @@
                 this.hasShield = false;
                 this.shieldDuration = 0;
                 this.hasRemoteControl = false;
+                this.remoteBombs = []; // Track remote bombs (max 2)
+                this.hasThrowBomb = false;
                 
                 console.log(`Player ${this.playerId} initialized with shield: ${this.hasShield}, duration: ${this.shieldDuration}`);
                 
@@ -659,6 +662,8 @@
                 this.hasShield = false;
                 this.shieldDuration = 0;
                 this.hasRemoteControl = false;
+                this.remoteBombs = []; // Clear remote bombs
+                this.hasThrowBomb = false;
                 
                 console.log(`Player ${this.playerId} reset - shield: ${this.hasShield}, duration: ${this.shieldDuration}`);
             }
@@ -748,6 +753,12 @@
                     return;
                 }
                 
+                // If player has throw bomb ability, automatically throw
+                if (this.hasThrowBomb) {
+                    this.autoThrowBomb();
+                    return;
+                }
+                
                 const bombPos = this.game.snapToGrid(this.pos);
                 
                 // Check if bomb already exists at position
@@ -758,13 +769,104 @@
                     }
                 }
                 
-                BombModel.create({
-                    position: bombPos,
-                    owner: this,
-                    firePower: this.firePower
-                });
+                // Handle remote bombs if player has remote control
+                if (this.hasRemoteControl) {
+                    this.placeRemoteBomb(bombPos);
+                } else {
+                    // Place normal bomb
+                    BombModel.create({
+                        position: bombPos,
+                        owner: this,
+                        firePower: this.firePower
+                    });
+                }
                 
                 this.lastBombTime = now;
+            }
+            
+            autoThrowBomb() {
+                const now = this.now();
+                
+                // Calculate throw direction based on last movement direction
+                let throwPos = { ...this.pos };
+                
+                switch(this.lastDirection) {
+                    case 'up':
+                        throwPos.y -= TILE_SIZE * 3; // Throw 3 tiles up
+                        break;
+                    case 'down':
+                        throwPos.y += TILE_SIZE * 3; // Throw 3 tiles down
+                        break;
+                    case 'left':
+                        throwPos.x -= TILE_SIZE * 3; // Throw 3 tiles left
+                        break;
+                    case 'right':
+                        throwPos.x += TILE_SIZE * 3; // Throw 3 tiles right
+                        break;
+                }
+                
+                // Snap to grid
+                throwPos = this.game.snapToGrid(throwPos);
+                
+                // Check if position is valid
+                if (this.game.isValidPosition(throwPos, this)) {
+                    // Create and place the bomb at throw position
+                    if (this.hasRemoteControl) {
+                        this.placeRemoteBomb(throwPos);
+                    } else {
+                        BombModel.create({
+                            position: throwPos,
+                            owner: this,
+                            firePower: this.firePower
+                        });
+                    }
+                    
+                    console.log(`Player ${this.playerId} auto-threw bomb to (${throwPos.x}, ${throwPos.y})`);
+                    
+                    // Publish to view for visual feedback
+                    this.publish(this.viewId, "bomb-auto-thrown", {
+                        playerId: this.playerId,
+                        throwPosition: throwPos
+                    });
+                } else {
+                    // If throw position is invalid, place at current position
+                    const bombPos = this.game.snapToGrid(this.pos);
+                    if (this.hasRemoteControl) {
+                        this.placeRemoteBomb(bombPos);
+                    } else {
+                        BombModel.create({
+                            position: bombPos,
+                            owner: this,
+                            firePower: this.firePower
+                        });
+                    }
+                    console.log(`Player ${this.playerId} auto-threw bomb to current position (invalid throw)`);
+                }
+                
+                this.lastBombTime = now;
+            }
+            
+            placeRemoteBomb(bombPos) {
+                // Remove oldest remote bomb if we have 2 already
+                if (this.remoteBombs.length >= 2) {
+                    const oldestBomb = this.remoteBombs.shift();
+                    if (oldestBomb && this.game.bombs.has(oldestBomb)) {
+                        this.game.bombs.delete(oldestBomb);
+                        oldestBomb.destroy();
+                        console.log(`Player ${this.playerId} removed oldest remote bomb to make room`);
+                    }
+                }
+                
+                // Create new remote bomb
+                const remoteBomb = BombModel.create({
+                    position: bombPos,
+                    owner: this,
+                    firePower: this.firePower,
+                    isRemote: true
+                });
+                
+                this.remoteBombs.push(remoteBomb);
+                console.log(`Player ${this.playerId} placed remote bomb (${this.remoteBombs.length}/2)`);
             }
             
             startHoldingBomb() {
@@ -773,24 +875,32 @@
                 const now = this.now();
                 if (now - this.lastBombTime < 500) return;
                 
+                // Check remote bomb limit if player has remote control
+                if (this.hasRemoteControl && this.remoteBombs.length >= 2) {
+                    console.log(`Player ${this.playerId} cannot hold bomb - remote bomb limit reached (${this.remoteBombs.length}/2)`);
+                    return;
+                }
+                
                 // Create a bomb that the player will hold
                 this.heldBomb = BombModel.create({
                     position: this.pos, // Start at player position
                     owner: this,
                     firePower: this.firePower,
-                    isHeld: true // Mark as held bomb
+                    isHeld: true, // Mark as held bomb
+                    isRemote: this.hasRemoteControl // Mark as remote if player has remote control
                 });
                 
                 this.isHoldingBomb = true;
                 this.bombHoldStartTime = now;
                 this.lastBombTime = now;
                 
-                console.log(`Player ${this.playerId} started holding bomb`);
+                console.log(`Player ${this.playerId} started holding ${this.hasRemoteControl ? 'remote' : 'normal'} bomb`);
                 
                 // Publish to view for visual feedback
                 this.publish(this.viewId, "bomb-holding-started", {
                     playerId: this.playerId,
-                    holdStartTime: this.bombHoldStartTime
+                    holdStartTime: this.bombHoldStartTime,
+                    isRemote: this.hasRemoteControl
                 });
             }
             
@@ -798,6 +908,8 @@
                 if (!this.isAlive || !this.isHoldingBomb || !this.heldBomb) return;
                 
                 const now = this.now();
+                
+
                 
                 // Calculate throw direction based on last movement direction
                 let throwPos = { ...this.pos };
@@ -826,10 +938,30 @@
                     this.heldBomb.pos = throwPos;
                     this.heldBomb.isHeld = false; // No longer held
                     
-                    // Add to game bombs set and start countdown
-                    this.game.bombs.add(this.heldBomb);
-                    this.heldBomb.countdown(); // Start the explosion timer
-                    this.heldBomb.startAnimation(); // Start the animation
+                    // Handle remote bombs differently
+                    if (this.heldBomb.isRemote) {
+                        // Check if we can add another remote bomb
+                        if (this.remoteBombs.length >= 2) {
+                            // Remove oldest remote bomb to make room
+                            const oldestBomb = this.remoteBombs.shift();
+                            if (oldestBomb && this.game.bombs.has(oldestBomb)) {
+                                this.game.bombs.delete(oldestBomb);
+                                oldestBomb.destroy();
+                                console.log(`Player ${this.playerId} removed oldest remote bomb to make room`);
+                            }
+                        }
+                        
+                        // Add to remote bombs array
+                        this.remoteBombs.push(this.heldBomb);
+                        this.game.bombs.add(this.heldBomb);
+                        this.heldBomb.startAnimation(); // Start the animation (no countdown for remote bombs)
+                        console.log(`Player ${this.playerId} threw remote bomb (${this.remoteBombs.length}/2)`);
+                    } else {
+                        // Add to game bombs set and start countdown for normal bombs
+                        this.game.bombs.add(this.heldBomb);
+                        this.heldBomb.countdown(); // Start the explosion timer
+                        this.heldBomb.startAnimation(); // Start the animation
+                    }
                     
                     console.log(`Player ${this.playerId} threw bomb to (${throwPos.x}, ${throwPos.y})`);
                     
@@ -843,11 +975,32 @@
                     // If throw position is invalid, place at current position
                     this.heldBomb.pos = this.game.snapToGrid(this.pos);
                     this.heldBomb.isHeld = false;
-                    this.game.bombs.add(this.heldBomb);
-                    this.heldBomb.countdown(); // Start the explosion timer
-                    this.heldBomb.startAnimation(); // Start the animation
                     
-                    console.log(`Player ${this.playerId} placed held bomb at current position`);
+                    // Handle remote bombs differently
+                    if (this.heldBomb.isRemote) {
+                        // Check if we can add another remote bomb
+                        if (this.remoteBombs.length >= 2) {
+                            // Remove oldest remote bomb to make room
+                            const oldestBomb = this.remoteBombs.shift();
+                            if (oldestBomb && this.game.bombs.has(oldestBomb)) {
+                                this.game.bombs.delete(oldestBomb);
+                                oldestBomb.destroy();
+                                console.log(`Player ${this.playerId} removed oldest remote bomb to make room`);
+                            }
+                        }
+                        
+                        // Add to remote bombs array
+                        this.remoteBombs.push(this.heldBomb);
+                        this.game.bombs.add(this.heldBomb);
+                        this.heldBomb.startAnimation(); // Start the animation (no countdown for remote bombs)
+                        console.log(`Player ${this.playerId} placed held remote bomb at current position (${this.remoteBombs.length}/2)`);
+                    } else {
+                        // Add to game bombs set and start countdown for normal bombs
+                        this.game.bombs.add(this.heldBomb);
+                        this.heldBomb.countdown(); // Start the explosion timer
+                        this.heldBomb.startAnimation(); // Start the animation
+                        console.log(`Player ${this.playerId} placed held bomb at current position`);
+                    }
                 }
                 
                 // Reset holding state
@@ -981,14 +1134,17 @@
                 
                 console.log(`Player ${this.playerId} detonating remote bombs...`);
                 
-                // Find all bombs owned by this player and detonate them
+                // Only detonate remote bombs
                 let bombCount = 0;
-                for (const bomb of this.game.bombs) {
-                    if (bomb.owner === this) {
+                for (const bomb of this.remoteBombs) {
+                    if (bomb && this.game.bombs.has(bomb)) {
                         bomb.explode();
                         bombCount++;
                     }
                 }
+                
+                // Clear remote bombs array
+                this.remoteBombs = [];
                 
                 // Remove remote control ability after use
                 this.hasRemoteControl = false;
@@ -998,11 +1154,12 @@
         PlayerModel.register("PlayerModel");
         
         class BombModel extends Multisynq.Model {
-            init({ position, owner, firePower, isHeld = false }) {
+            init({ position, owner, firePower, isHeld = false, isRemote = false }) {
                 this.pos = position;
                 this.owner = owner;
                 this.firePower = firePower;
                 this.isHeld = isHeld;
+                this.isRemote = isRemote;
                 this.timer = BOMB_TIMER;
                 this.animationFrame = 0;
                 this.animationTimer = 0;
@@ -1010,7 +1167,12 @@
                 // Only add to game bombs if not held
                 if (!this.isHeld) {
                     this.game.bombs.add(this);
-                    this.countdown();
+                    
+                    // Only start countdown for non-remote bombs
+                    if (!this.isRemote) {
+                        this.countdown();
+                    }
+                    
                     this.startAnimation();
                 }
             }
@@ -1170,7 +1332,7 @@
         class PowerUpModel extends Multisynq.Model {
             init({ position }) {
                 this.pos = position;
-                const types = ['bomb', 'fire', 'speed', 'shield', 'remote'];
+                const types = ['bomb', 'fire', 'speed', 'shield', 'remote', 'throw'];
                 this.type = types[Math.floor(this.random() * types.length)];
                 
                 this.game.powerUps.add(this);
@@ -1208,6 +1370,10 @@
                     case 'remote':
                         player.hasRemoteControl = true;
                         console.log(`Player ${player.playerId} got remote control`);
+                        break;
+                    case 'throw':
+                        player.hasThrowBomb = true;
+                        console.log(`Player ${player.playerId} got throw bomb ability`);
                         break;
                 }
                 
@@ -1256,7 +1422,9 @@
                 this.subscribe(this.viewId, "powerup-collected", this.onPowerUpCollected);
                 this.subscribe(this.viewId, "bomb-holding-started", this.onBombHoldingStarted);
                 this.subscribe(this.viewId, "bomb-thrown", this.onBombThrown);
+                this.subscribe(this.viewId, "bomb-auto-thrown", this.onBombAutoThrown);
                 this.subscribe(this.viewId, "shield-blocked", this.onShieldBlocked);
+                this.subscribe(this.viewId, "remote-bomb-limit-reached", this.onRemoteBombLimitReached);
                 
                 this.render();
             }
@@ -1421,8 +1589,24 @@
                 }, 2000);
             }
             
+            onBombAutoThrown(data) {
+                this.gameStatusEl.textContent = '💣 Auto-threw bomb!';
+                // Reset status after a short delay
+                setTimeout(() => {
+                    this.gameStatusEl.textContent = 'Game Started! Fight!';
+                }, 2000);
+            }
+            
             onShieldBlocked(data) {
                 this.gameStatusEl.textContent = '🛡️ Shield blocked explosion!';
+                // Reset status after a short delay
+                setTimeout(() => {
+                    this.gameStatusEl.textContent = 'Game Started! Fight!';
+                }, 2000);
+            }
+            
+            onRemoteBombLimitReached(data) {
+                this.gameStatusEl.textContent = '💜 Remote bomb limit reached (2/2)!';
                 // Reset status after a short delay
                 setTimeout(() => {
                     this.gameStatusEl.textContent = 'Game Started! Fight!';
@@ -1439,6 +1623,7 @@
                 
                 const shieldStatus = document.getElementById('shieldStatus');
                 const remoteStatus = document.getElementById('remoteStatus');
+                const throwStatus = document.getElementById('throwStatus');
                 
                 // Update shield status
                 if (localPlayer.hasShield) {
@@ -1451,9 +1636,18 @@
                 // Update remote control status
                 if (localPlayer.hasRemoteControl) {
                     remoteStatus.style.display = 'block';
-                    remoteStatus.textContent = '🎮 Remote Control Ready (Press R)';
+                    const bombCount = localPlayer.remoteBombs.length + (localPlayer.isHoldingBomb && localPlayer.heldBomb && localPlayer.heldBomb.isRemote ? 1 : 0);
+                    remoteStatus.textContent = `🎮 Remote Control Ready (${bombCount}/2 bombs) - Press R`;
                 } else {
                     remoteStatus.style.display = 'none';
+                }
+                
+                // Update throw bomb status
+                if (localPlayer.hasThrowBomb) {
+                    throwStatus.style.display = 'block';
+                    throwStatus.textContent = '💣 Throw Bomb Active - Press Space';
+                } else {
+                    throwStatus.style.display = 'none';
                 }
             }
             
@@ -1631,6 +1825,9 @@
                             case 'remote':
                                 powerupColor = '#ff00ff'; // Magenta
                                 break;
+                            case 'throw':
+                                powerupColor = '#ff8800'; // Orange
+                                break;
                             default:
                                 powerupColor = '#ffffff'; // White
                         }
@@ -1693,11 +1890,32 @@
                         ctx.textAlign = 'center';
                         ctx.fillText('HELD!', bomb.pos.x + offsetX + TILE_SIZE/2, bomb.pos.y + offsetY - 5);
                     }
+                    
+                    // Add visual indicator for remote bombs
+                    if (bomb.isRemote) {
+                        ctx.strokeStyle = '#ff00ff';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(bomb.pos.x + offsetX - 2, bomb.pos.y + offsetY - 2, TILE_SIZE + 4, TILE_SIZE + 4);
+                        
+                        // Add remote indicator
+                        ctx.fillStyle = '#ff00ff';
+                        ctx.font = '10px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('REMOTE', bomb.pos.x + offsetX + TILE_SIZE/2, bomb.pos.y + offsetY - 5);
+                    }
                 } else {
-                    ctx.fillStyle = isHeld ? '#ff0000' : '#222';
+                    ctx.fillStyle = isHeld ? '#ff0000' : bomb.isRemote ? '#ff00ff' : '#222';
                     ctx.beginPath();
                     ctx.arc(bomb.pos.x + offsetX + TILE_SIZE/2, bomb.pos.y + offsetY + TILE_SIZE/2, TILE_SIZE/3, 0, Math.PI * 2);
                     ctx.fill();
+                    
+                    // Add text indicator for remote bombs
+                    if (bomb.isRemote) {
+                        ctx.fillStyle = '#000';
+                        ctx.font = '8px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('R', bomb.pos.x + offsetX + TILE_SIZE/2, bomb.pos.y + offsetY + TILE_SIZE/2);
+                    }
                 }
             }
             
@@ -1771,6 +1989,11 @@
                 // Draw remote control indicator
                 if (player.hasRemoteControl) {
                     this.drawStar(centerX, centerY + 15, '#ff00ff', '🎮');
+                }
+                
+                // Draw throw bomb indicator
+                if (player.hasThrowBomb) {
+                    this.drawStar(centerX, centerY + 30, '#ff8800', '💣');
                 }
             }
             
