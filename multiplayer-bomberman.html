@@ -136,6 +136,17 @@
         Your browser does not support the audio element.
     </audio>
     
+    <!-- Sound Effects -->
+    <audio id="explosionSound" preload="auto">
+        <source src="explosion.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="powerupSound" preload="auto">
+        <source src="powerup.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="deathSound" preload="auto">
+        <source src="dead_scream.mp3" type="audio/mpeg">
+    </audio>
+    
     <div id="gameWrapper">
         <h1>🎮 Multiplayer Bomberman</h1>
         
@@ -840,6 +851,8 @@
                 
                 if (this.lives <= 0) {
                     this.isAlive = false;
+                    // Play death sound when player dies
+                    playDeathSound();
                 } else {
                     // Respawn at spawn position
                     const spawnPositions = [
@@ -963,6 +976,9 @@
             explode() {
                 this.game.bombs.delete(this);
                 
+                // Play explosion sound
+                playExplosionSound();
+                
                 const explosionPositions = this.calculateExplosionPattern();
                 
                 for (const pos of explosionPositions) {
@@ -1085,6 +1101,9 @@
             }
             
             collect(player) {
+                // Play powerup sound
+                playPowerupSound();
+                
                 switch(this.type) {
                     case 'bomb':
                         player.bombCount++;
@@ -1586,6 +1605,9 @@
         let backgroundMusic;
         let isMusicPlaying = true;
         
+        // Sound Effects Management
+        let explosionSound, powerupSound, deathSound;
+        
         function initializeMusic() {
             backgroundMusic = document.getElementById('backgroundMusic');
             
@@ -1627,10 +1649,51 @@
             console.log('Background music initialized');
         }
         
+        function initializeSoundEffects() {
+            explosionSound = document.getElementById('explosionSound');
+            powerupSound = document.getElementById('powerupSound');
+            deathSound = document.getElementById('deathSound');
+            
+            // Set volumes for sound effects
+            explosionSound.volume = 0.4;
+            powerupSound.volume = 0.5;
+            deathSound.volume = 0.6;
+            
+            console.log('Sound effects initialized');
+        }
+        
+        function playExplosionSound() {
+            if (explosionSound) {
+                explosionSound.currentTime = 0;
+                explosionSound.play().catch(e => {
+                    console.log('Could not play explosion sound:', e);
+                });
+            }
+        }
+        
+        function playPowerupSound() {
+            if (powerupSound) {
+                powerupSound.currentTime = 0;
+                powerupSound.play().catch(e => {
+                    console.log('Could not play powerup sound:', e);
+                });
+            }
+        }
+        
+        function playDeathSound() {
+            if (deathSound) {
+                deathSound.currentTime = 0;
+                deathSound.play().catch(e => {
+                    console.log('Could not play death sound:', e);
+                });
+            }
+        }
+        
         // Start the game
         function startGame() {
-            // Initialize background music
+            // Initialize background music and sound effects
             initializeMusic();
+            initializeSoundEffects();
             
             document.getElementById('gameStatus').textContent = 'Connecting to MultiSynq...';
             

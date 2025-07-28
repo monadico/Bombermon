@@ -75,6 +75,17 @@
         Your browser does not support the audio element.
     </audio>
     
+    <!-- Sound Effects -->
+    <audio id="explosionSound" preload="auto">
+        <source src="explosion.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="powerupSound" preload="auto">
+        <source src="powerup.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="deathSound" preload="auto">
+        <source src="dead_scream.mp3" type="audio/mpeg">
+    </audio>
+    
     <div id="gameContainer">
         <div id="ui">
             <div>Lives: <span id="lives">3</span></div>
@@ -1039,6 +1050,9 @@
         let backgroundMusic;
         let isMusicPlaying = true;
         
+        // Sound Effects Management
+        let explosionSound, powerupSound, deathSound;
+        
         function initializeMusic() {
             backgroundMusic = document.getElementById('backgroundMusic');
             
@@ -1080,10 +1094,51 @@
             console.log('Background music initialized');
         }
         
+        function initializeSoundEffects() {
+            explosionSound = document.getElementById('explosionSound');
+            powerupSound = document.getElementById('powerupSound');
+            deathSound = document.getElementById('deathSound');
+            
+            // Set volumes for sound effects
+            explosionSound.volume = 0.4;
+            powerupSound.volume = 0.5;
+            deathSound.volume = 0.6;
+            
+            console.log('Sound effects initialized');
+        }
+        
+        function playExplosionSound() {
+            if (explosionSound) {
+                explosionSound.currentTime = 0;
+                explosionSound.play().catch(e => {
+                    console.log('Could not play explosion sound:', e);
+                });
+            }
+        }
+        
+        function playPowerupSound() {
+            if (powerupSound) {
+                powerupSound.currentTime = 0;
+                powerupSound.play().catch(e => {
+                    console.log('Could not play powerup sound:', e);
+                });
+            }
+        }
+        
+        function playDeathSound() {
+            if (deathSound) {
+                deathSound.currentTime = 0;
+                deathSound.play().catch(e => {
+                    console.log('Could not play death sound:', e);
+                });
+                }
+            }
+        
         // Start the game - sprites load asynchronously in Kaboom.js
         function startMultiSynqGame() {
-            // Initialize background music
+            // Initialize background music and sound effects
             initializeMusic();
+            initializeSoundEffects();
             
             console.log('Starting MultiSynq Bomberman game...');
             
