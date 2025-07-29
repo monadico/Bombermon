@@ -213,6 +213,19 @@
     </style>
 </head>
 <body>
+    <!-- Background Music -->
+    <audio id="lobbyMusic" loop>
+        <source src="lobby_song.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    
+    <!-- Music Controls -->
+    <div id="musicControls" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
+        <button id="musicToggle" style="background: #00ff88; color: #000; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold;">
+            🎵 Music: ON
+        </button>
+    </div>
+    
     <div class="container">
         <h1>🎮 Bomberman Lobby</h1>
         
@@ -254,6 +267,18 @@
             <div id="playerList" class="session-info">
                 <h3>Players <span id="playerCount" style="font-size: 14px; color: #00ff88;">0/4 Players</span></h3>
                 <div id="playersList"></div>
+            </div>
+            
+            <!-- Chat Section -->
+            <div id="chatSection" class="session-info">
+                <h3>💬 Lobby Chat</h3>
+                <div id="chatMessages" style="height: 200px; overflow-y: auto; border: 1px solid #333; border-radius: 8px; padding: 10px; margin-bottom: 10px; background: rgba(0, 0, 0, 0.3);">
+                    <div style="color: #888; font-style: italic; text-align: center;">Welcome to the lobby! Start chatting with your teammates...</div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="chatInput" placeholder="Type your message..." style="flex: 1; padding: 8px; border: 1px solid #333; border-radius: 4px; background: #1a1a1a; color: white; font-family: inherit;">
+                    <button onclick="sendChatMessage()" style="padding: 8px 15px; background: #00ff88; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Send</button>
+                </div>
             </div>
             
             <div class="button-group">
@@ -612,6 +637,7 @@
                 this.subscribe(this.sessionId, "start-game-request", this.handleStartGameRequest);
                 this.subscribe("lobby", "player-ready", this.handlePlayerReady);
                 this.subscribe("lobby", "start-game", this.handleStartGame);
+                this.subscribe("lobby", "chat-message", this.handleChatMessage);
                 
                 console.log('Lobby Model initialized');
             }
@@ -738,6 +764,18 @@
                 return false;
             }
             
+            handleChatMessage(data) {
+                const { playerName, message, timestamp } = data;
+                console.log(`Chat message from ${playerName}: ${message}`);
+                
+                // Broadcast the chat message to all players
+                this.publish(this.sessionId, "chat-message-received", {
+                    playerName: playerName,
+                    message: message,
+                    timestamp: timestamp || this.now()
+                });
+            }
+            
 
         }
         LobbyModel.register("LobbyModel");
@@ -753,6 +791,7 @@
                 this.subscribe(this.sessionId, "player-list-updated", this.onPlayerListUpdated);
                 this.subscribe(this.sessionId, "start-game", this.onGameStarting);
                 this.subscribe(this.sessionId, "game-starting", this.onGameStarting);
+                this.subscribe(this.sessionId, "chat-message-received", this.onChatMessageReceived);
             }
             
             onPlayerListUpdated(data) {
@@ -772,6 +811,11 @@
                 
                 // Redirect to the game
                 window.location.href = `multiplayer-bomberman.html#${data.sessionId}`;
+            }
+            
+            onChatMessageReceived(data) {
+                console.log('Chat message received:', data);
+                addChatMessage(data.playerName, data.message, data.timestamp);
             }
             
 
@@ -876,6 +920,109 @@
         document.getElementById('sessionId').addEventListener('input', (e) => {
             e.target.value = e.target.value.toLowerCase();
         });
+        
+        // Chat Functions
+        function sendChatMessage() {
+            const chatInput = document.getElementById('chatInput');
+            const message = chatInput.value.trim();
+            
+            if (!message || !currentSession) return;
+            
+            // Clear input
+            chatInput.value = '';
+            
+            // Send message through View-to-Model communication
+            if (currentSession.view) {
+                currentSession.view.publish("lobby", "chat-message", {
+                    playerName: playerName,
+                    message: message,
+                    timestamp: Date.now()
+                });
+            }
+        }
+        
+        function addChatMessage(playerName, message, timestamp) {
+            const chatMessages = document.getElementById('chatMessages');
+            if (!chatMessages) return;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.style.marginBottom = '8px';
+            messageDiv.style.padding = '5px';
+            messageDiv.style.borderRadius = '4px';
+            
+            const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            // Check if it's the current player's message
+            const isOwnMessage = playerName === window.playerName;
+            
+            if (isOwnMessage) {
+                messageDiv.style.background = 'rgba(0, 255, 136, 0.2)';
+                messageDiv.style.textAlign = 'right';
+                messageDiv.innerHTML = `<span style="color: #00ff88; font-weight: bold;">You (${time}):</span> ${message}`;
+            } else {
+                messageDiv.style.background = 'rgba(255, 255, 255, 0.1)';
+                messageDiv.innerHTML = `<span style="color: #ffaa00; font-weight: bold;">${playerName} (${time}):</span> ${message}`;
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            
+            // Auto-scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Handle Enter key in chat input
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && e.target.id === 'chatInput') {
+                sendChatMessage();
+            }
+        });
+        
+        // Music Controls
+        const lobbyMusic = document.getElementById('lobbyMusic');
+        const musicToggle = document.getElementById('musicToggle');
+        let isMusicPlaying = false;
+        
+        // Initialize music
+        function initMusic() {
+            // Set volume to a reasonable level
+            lobbyMusic.volume = 0.3;
+            
+            // Set music to be on by default
+            isMusicPlaying = true;
+            musicToggle.textContent = '🎵 Music: ON';
+            musicToggle.style.background = '#00ff88';
+            
+            // Try to start music (may be blocked by browser autoplay policy)
+            lobbyMusic.play().then(() => {
+                console.log('Music started successfully');
+            }).catch(error => {
+                console.log('Autoplay blocked by browser. User must click to start music.');
+                isMusicPlaying = false;
+                musicToggle.textContent = '🎵 Music: OFF';
+                musicToggle.style.background = '#ff4444';
+            });
+        }
+        
+        // Toggle music
+        musicToggle.addEventListener('click', () => {
+            if (isMusicPlaying) {
+                lobbyMusic.pause();
+                isMusicPlaying = false;
+                musicToggle.textContent = '🎵 Music: OFF';
+                musicToggle.style.background = '#ff4444';
+            } else {
+                lobbyMusic.play().then(() => {
+                    isMusicPlaying = true;
+                    musicToggle.textContent = '🎵 Music: ON';
+                    musicToggle.style.background = '#00ff88';
+                }).catch(error => {
+                    console.error('Failed to play music:', error);
+                });
+            }
+        });
+        
+        // Initialize music when page loads
+        window.addEventListener('load', initMusic);
         
         console.log('🎮 Bomberman Lobby initialized');
     </script>
