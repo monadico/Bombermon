@@ -219,6 +219,12 @@
         Your browser does not support the audio element.
     </audio>
     
+    <!-- Button Click Sound Effect -->
+    <audio id="buttonEffect">
+        <source src="button_effect.wav" type="audio/wav">
+        Your browser does not support the audio element.
+    </audio>
+    
     <!-- Music Controls -->
     <div id="musicControls" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
         <button id="musicToggle" style="background: #00ff88; color: #000; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold;">
@@ -336,6 +342,8 @@
         
         // Create a new game session
         async function createGame() {
+            playButtonSound(); // Play button click sound
+            
             const name = document.getElementById('playerName').value.trim();
             if (!name) {
                 alert('Please enter your name');
@@ -412,6 +420,8 @@
         
         // Join an existing game session
         async function joinGame() {
+            playButtonSound(); // Play button click sound
+            
             const name = document.getElementById('playerName').value.trim();
             const sessionId = document.getElementById('sessionId').value.trim();
             
@@ -502,13 +512,15 @@
                         updateStatus('Ready to create or join a game', 'connecting');
                     }, 3000);
                 } else {
-                    updateStatus('Failed to join game session. Check the session ID.', 'error');
+                updateStatus('Failed to join game session. Check the session ID.', 'error');
                 }
             }
         }
         
         // Toggle ready status
         function toggleReady() {
+            playButtonSound(); // Play button click sound
+            
             if (!currentSession) return;
             
             isReady = !isReady;
@@ -542,6 +554,8 @@
         
         // Start the game
         function startGame() {
+            playButtonSound(); // Play button click sound
+            
             if (!currentSession || !isHost) return;
             
             console.log('Starting game...');
@@ -568,6 +582,8 @@
         
         // Leave the session
         function leaveSession() {
+            playButtonSound(); // Play button click sound
+            
             if (currentSession) {
                 currentSession.exit();
                 currentSession = null;
@@ -981,6 +997,19 @@
         const lobbyMusic = document.getElementById('lobbyMusic');
         const musicToggle = document.getElementById('musicToggle');
         let isMusicPlaying = false;
+        
+        // Button Click Sound Effect
+        const buttonEffect = document.getElementById('buttonEffect');
+        
+        function playButtonSound() {
+            if (buttonEffect) {
+                buttonEffect.currentTime = 0; // Reset to start
+                buttonEffect.volume = 0.5; // Set volume
+                buttonEffect.play().catch(error => {
+                    console.log('Button sound play failed:', error);
+                });
+            }
+        }
         
         // Initialize music
         function initMusic() {
