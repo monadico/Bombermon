@@ -340,11 +340,28 @@
                     step: "auto",
                     
                     // ✅ Reject before model loads
-                    acceptView: ({ snapshot }) => {
-                        const playerCount = snapshot?.players ? snapshot.players.size || 0 : 0;
-                        if (playerCount >= 4) {
+                    acceptView: ({ snapshot, viewData }) => {
+                        const maxPlayers = 4;
+                        const players = snapshot?.players || new Map();
+                        const lobbyLocked = snapshot?.lobbyLocked || false;
+                        
+                        const playerCount = players.size || 0;
+                        
+                        const isReturning = (() => {
+                            for (let player of players.values()) {
+                                if (player.name === viewData.playerName) return true;
+                            }
+                            return false;
+                        })();
+                        
+                        if (lobbyLocked && !isReturning) {
+                            throw new Error("Game already started. You cannot join.");
+                        }
+                        
+                        if (playerCount >= maxPlayers && !isReturning) {
                             throw new Error("Game is full! Maximum 4 players allowed.");
                         }
+                        
                         return true;
                     }
                 });
@@ -406,11 +423,28 @@
                     step: "auto",
                     
                     // ✅ Reject before model loads
-                    acceptView: ({ snapshot }) => {
-                        const playerCount = snapshot?.players ? snapshot.players.size || 0 : 0;
-                        if (playerCount >= 4) {
+                    acceptView: ({ snapshot, viewData }) => {
+                        const maxPlayers = 4;
+                        const players = snapshot?.players || new Map();
+                        const lobbyLocked = snapshot?.lobbyLocked || false;
+                        
+                        const playerCount = players.size || 0;
+                        
+                        const isReturning = (() => {
+                            for (let player of players.values()) {
+                                if (player.name === viewData.playerName) return true;
+                            }
+                            return false;
+                        })();
+                        
+                        if (lobbyLocked && !isReturning) {
+                            throw new Error("Game already started. You cannot join.");
+                        }
+                        
+                        if (playerCount >= maxPlayers && !isReturning) {
                             throw new Error("Game is full! Maximum 4 players allowed.");
                         }
+                        
                         return true;
                     }
                 });
@@ -431,9 +465,14 @@
             } catch (error) {
                 console.error('Failed to join game session:', error);
                 
-                // Check if it's a lobby full error
+                // Check for specific error types
                 if (error.message && error.message.includes('full')) {
                     updateStatus('Game is full! Maximum 4 players allowed.', 'error');
+                    setTimeout(() => {
+                        updateStatus('Ready to create or join a game', 'connecting');
+                    }, 3000);
+                } else if (error.message && error.message.includes('already started')) {
+                    updateStatus('Game already started. You cannot join.', 'error');
                     setTimeout(() => {
                         updateStatus('Ready to create or join a game', 'connecting');
                     }, 3000);
@@ -565,6 +604,7 @@
                 this.gameStarted = false;
                 this.hostId = null;
                 this.maxPlayers = 4; // Maximum players per game
+                this.lobbyLocked = false; // Lock lobby when game starts
                 
                 // Subscribe to events
                 this.subscribe(this.sessionId, "view-join", this.playerJoined);
@@ -681,12 +721,21 @@
             handleStartGame(data) {
                 console.log('Game starting!', data);
                 this.gameStarted = true;
+                this.lobbyLocked = true; // Lock the lobby when game starts
                 
                 // Publish game start event to all views
                 this.publish(this.sessionId, "game-starting", {
                     sessionId: this._sessionId,
                     startedBy: data.startedBy
                 });
+            }
+            
+            isRejoiningPlayer(viewData) {
+                const name = viewData?.playerName;
+                for (let player of this.players.values()) {
+                    if (player.name === name) return true;
+                }
+                return false;
             }
             
 
