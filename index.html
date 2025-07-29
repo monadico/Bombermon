@@ -159,6 +159,57 @@
         .hidden {
             display: none;
         }
+        
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+        
+        .player-name {
+            font-weight: bold;
+        }
+        
+        .player-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .ready-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .ready-status.ready {
+            background: rgba(76, 175, 80, 0.3);
+            color: #4CAF50;
+        }
+        
+        .ready-status.not-ready {
+            background: rgba(244, 67, 54, 0.3);
+            color: #F44336;
+        }
+        
+        .host-badge {
+            background: rgba(255, 193, 7, 0.3);
+            color: #FFC107;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -199,8 +250,15 @@
                 <button class="copy-btn" onclick="copyInviteLink()">Copy Invite Link</button>
             </div>
             
+            <!-- Player List -->
+            <div id="playerList" class="session-info">
+                <h3>Players</h3>
+                <div id="playersList"></div>
+            </div>
+            
             <div class="button-group">
-                <button class="btn-primary" onclick="startGame()">Start Game</button>
+                <button class="btn-primary" id="readyBtn" onclick="toggleReady()">Ready</button>
+                <button class="btn-primary" id="startBtn" onclick="startGame()" disabled>Start Game</button>
                 <button class="btn-secondary" onclick="leaveSession()">Leave Session</button>
             </div>
         </div>
@@ -217,6 +275,9 @@
         let currentSession = null;
         let currentSessionId = null;
         let playerName = '';
+        let isHost = false;
+        let isReady = false;
+        let playerViewId = null;
         
         // Generate a session ID
         function generateSessionId() {
@@ -277,6 +338,10 @@
                 console.log('Lobby session created successfully:', currentSession.id);
                 updateStatus('Game session created! Ready to start.', 'connected');
                 
+                // Set host flag and store viewId
+                isHost = true;
+                playerViewId = currentSession.view?.id || 'V1'; // Use view ID as fallback
+                
                 // Show session info
                 document.getElementById('setupSection').classList.add('hidden');
                 document.getElementById('sessionSection').classList.remove('hidden');
@@ -328,6 +393,10 @@
                 console.log('Joined lobby session successfully:', currentSession.id);
                 updateStatus('Joined game session! Waiting for host to start...', 'connected');
                 
+                // Set host flag and store viewId
+                isHost = false;
+                playerViewId = currentSession.view?.id || 'V1'; // Use view ID as fallback
+                
                 // Show session info
                 document.getElementById('setupSection').classList.add('hidden');
                 document.getElementById('sessionSection').classList.remove('hidden');
@@ -339,16 +408,58 @@
             }
         }
         
+        // Toggle ready status
+        function toggleReady() {
+            if (!currentSession) return;
+            
+            isReady = !isReady;
+            const readyBtn = document.getElementById('readyBtn');
+            readyBtn.textContent = isReady ? 'Not Ready' : 'Ready';
+            readyBtn.className = isReady ? 'btn-secondary' : 'btn-primary';
+            
+            // Find the player by name in the model
+            const model = currentSession.model;
+            let foundPlayerViewId = null;
+            
+            for (const [viewId, player] of model.players.entries()) {
+                if (player.name === playerName) {
+                    foundPlayerViewId = viewId;
+                    break;
+                }
+            }
+            
+            console.log(`Publishing ready status: ${isReady} for player: ${playerName} (viewId: ${foundPlayerViewId})`);
+            
+            // Use the correct View-to-Model communication pattern
+            if (currentSession.view && foundPlayerViewId) {
+                currentSession.view.publish("lobby", "player-ready", {
+                    viewId: foundPlayerViewId,
+                    isReady: isReady
+                });
+            } else {
+                console.error('No view available or player not found');
+            }
+        }
+        
         // Start the game
         function startGame() {
-            if (!currentSession) return;
+            if (!currentSession || !isHost) return;
             
             // Store session info in localStorage for the game
             localStorage.setItem('bomberman_session', JSON.stringify({
                 sessionId: currentSessionId,
                 playerName: playerName,
-                isHost: true
+                isHost: isHost
             }));
+            
+            // Publish start game event
+            if (currentSession.model) {
+                currentSession.model.publish(currentSession.sessionId, "start-game", {
+                    startedBy: currentSession.viewId || currentSession.view?.viewId
+                });
+            } else {
+                console.error('No model available for publishing start game');
+            }
             
             // Redirect to the game
             window.location.href = `multiplayer-bomberman.html#${currentSessionId}`;
@@ -421,6 +532,7 @@
                 this.subscribe(this.sessionId, "view-join", this.playerJoined);
                 this.subscribe(this.sessionId, "view-exit", this.playerExited);
                 this.subscribe(this.sessionId, "start-game-request", this.handleStartGameRequest);
+                this.subscribe("lobby", "player-ready", this.handlePlayerReady);
                 
                 console.log('Lobby Model initialized');
             }
@@ -441,6 +553,7 @@
                     viewId: viewId,
                     name: viewData.playerName || 'Player',
                     isHost: viewData.isHost || false,
+                    isReady: false,
                     joinedAt: this.now()
                 });
                 
@@ -485,13 +598,18 @@
                 const playerData = Array.from(this.players.values()).map(p => ({
                     viewId: p.viewId,
                     name: p.name,
-                    isHost: p.isHost
+                    isHost: p.isHost,
+                    isReady: p.isReady
                 }));
+                
+                // Check if all players are ready
+                const allReady = this.players.size >= 2 && Array.from(this.players.values()).every(p => p.isReady);
                 
                 this.publish(this.sessionId, "player-list-updated", {
                     players: playerData,
                     hostId: this.hostId,
-                    sessionId: this._sessionId
+                    sessionId: this._sessionId,
+                    allReady: allReady
                 });
             }
             
@@ -499,6 +617,24 @@
                 console.log('Game starting:', data);
                 // This will be handled by the view
             }
+            
+            handlePlayerReady(data) {
+                const { viewId, isReady } = data;
+                console.log(`Received ready status: ${isReady} for viewId: ${viewId}`);
+                console.log('Current players:', Array.from(this.players.entries()));
+                
+                const player = this.players.get(viewId);
+                
+                if (player) {
+                    player.isReady = isReady;
+                    console.log(`Player ${player.name} is now ${isReady ? 'ready' : 'not ready'}`);
+                    this.updatePlayerList();
+                } else {
+                    console.error(`Player with viewId ${viewId} not found in players list`);
+                }
+            }
+            
+
         }
         LobbyModel.register("LobbyModel");
         
@@ -516,7 +652,7 @@
             
             onPlayerListUpdated(data) {
                 console.log('Player list updated:', data);
-                // Could update UI here if needed
+                updatePlayerListUI(data);
             }
             
             onGameStarting(data) {
@@ -542,6 +678,68 @@
                 showJoinSection();
             }
         });
+        
+        // Update player list UI
+        function updatePlayerListUI(data) {
+            console.log('Updating player list UI with data:', data);
+            
+            const playersListEl = document.getElementById('playersList');
+            const startBtn = document.getElementById('startBtn');
+            
+            if (!playersListEl) {
+                console.error('playersList element not found');
+                return;
+            }
+            
+            // Clear current list
+            playersListEl.innerHTML = '';
+            
+            // Add each player
+            data.players.forEach(player => {
+                const playerEl = document.createElement('div');
+                playerEl.className = 'player-item';
+                
+                const nameEl = document.createElement('div');
+                nameEl.className = 'player-name';
+                nameEl.textContent = player.name;
+                if (player.isHost) {
+                    const hostBadge = document.createElement('span');
+                    hostBadge.className = 'host-badge';
+                    hostBadge.textContent = 'HOST';
+                    nameEl.appendChild(hostBadge);
+                }
+                
+                const statusEl = document.createElement('div');
+                statusEl.className = 'player-status';
+                
+                const readyStatus = document.createElement('span');
+                readyStatus.className = `ready-status ${player.isReady ? 'ready' : 'not-ready'}`;
+                readyStatus.textContent = player.isReady ? 'READY' : 'NOT READY';
+                
+                statusEl.appendChild(readyStatus);
+                
+                playerEl.appendChild(nameEl);
+                playerEl.appendChild(statusEl);
+                playersListEl.appendChild(playerEl);
+            });
+            
+            // Update start button state
+            console.log(`isHost: ${isHost}, allReady: ${data.allReady}, players: ${data.players.length}`);
+            
+            if (isHost && data.allReady) {
+                startBtn.disabled = false;
+                startBtn.textContent = 'Start Game';
+                console.log('Start button enabled!');
+            } else if (isHost) {
+                startBtn.disabled = true;
+                startBtn.textContent = 'Waiting for players to be ready...';
+                console.log('Start button disabled - waiting for players');
+            } else {
+                startBtn.disabled = true;
+                startBtn.textContent = 'Only host can start game';
+                console.log('Start button disabled - not host');
+            }
+        }
         
         // Handle session ID input formatting
         document.getElementById('sessionId').addEventListener('input', (e) => {
