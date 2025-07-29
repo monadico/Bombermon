@@ -10,11 +10,24 @@ This guide will help you deploy your Multiplayer Bomberman game to Vercel.
 
 ## 🔧 Step 1: Configure Your API Key
 
-Before deploying, you need to update the API key in your configuration:
+Before deploying, you need to set up your environment variables:
 
-1. Open `config.js`
-2. Replace `'234567_Paste_Your_Own_API_Key_Here_7654321'` with your actual MultiSynq API key
-3. Save the file
+### Option A: Local Development (.env file)
+1. Create a `.env` file in your project root
+2. Add your API key:
+   ```
+   MULTISYNQ_API_KEY=your_actual_api_key_here
+   MULTISYNQ_APP_ID=io.multisynq.bomberman-game
+   MULTISYNQ_LOBBY_APP_ID=io.multisynq.bomberman-lobby
+   ```
+
+### Option B: Vercel Environment Variables
+1. Go to your Vercel project dashboard
+2. Navigate to Settings → Environment Variables
+3. Add the following variables:
+   - `MULTISYNQ_API_KEY`: Your actual API key
+   - `MULTISYNQ_APP_ID`: `io.multisynq.bomberman-game`
+   - `MULTISYNQ_LOBBY_APP_ID`: `io.multisynq.bomberman-lobby`
 
 ## 🚀 Step 2: Deploy to Vercel
 

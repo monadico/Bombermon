@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bomberman Lobby</title>
     <script src="https://cdn.jsdelivr.net/npm/@multisynq/client@latest/bundled/multisynq-client.min.js"></script>
+    <script src="env-loader.js"></script>
     <style>
         body {
             margin: 0;
@@ -419,8 +420,8 @@
     <script>
         // Configuration
         const CONFIG = {
-            apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
-            appId: 'io.multisynq.bomberman-lobby'
+            apiKey: process.env.MULTISYNQ_API_KEY || '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
+            appId: process.env.MULTISYNQ_LOBBY_APP_ID || 'io.multisynq.bomberman-lobby'
         };
         
         // Global variables

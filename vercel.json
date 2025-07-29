@@ -38,6 +38,11 @@
       "use": "@vercel/static"
     }
   ],
+  "env": {
+    "MULTISYNQ_API_KEY": "@multisynq-api-key",
+    "MULTISYNQ_APP_ID": "@multisynq-app-id",
+    "MULTISYNQ_LOBBY_APP_ID": "@multisynq-lobby-app-id"
+  },
   "rewrites": [
     {
       "source": "/",

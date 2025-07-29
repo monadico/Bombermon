@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multiplayer Bomberman - Pure Canvas + MultiSynq</title>
     <script src="https://cdn.jsdelivr.net/npm/@multisynq/client@latest/bundled/multisynq-client.min.js"></script>
+    <script src="env-loader.js"></script>
     <style>
         body {
             margin: 0;
@@ -2970,8 +2971,8 @@
             
             // Join MultiSynq session with consistent parameters
             Multisynq.Session.join({
-                apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
-                appId: 'io.multisynq.bomberman-game',
+                apiKey: process.env.MULTISYNQ_API_KEY || '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
+                appId: process.env.MULTISYNQ_APP_ID || 'io.multisynq.bomberman-game',
                 model: GameModel,
                 view: GameView,
                 name: sessionName,
@@ -3030,8 +3031,8 @@
         //     console.log('Trying simple session without password...');
         //     
         //     Multisynq.Session.join({
-        //         apiKey: '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
-        //         appId: 'io.multisynq.bomberman-simple',
+        //         apiKey: process.env.MULTISYNQ_API_KEY || '2ggnQt2MuoVu2xcPjaevCeZUyyrX68wFDTDjL2dCOn',
+        //         appId: process.env.MULTISYNQ_APP_ID || 'io.multisynq.bomberman-simple',
         //         model: GameModel,
         //         view: GameView,
         //         step: "auto"
