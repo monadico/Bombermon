@@ -38,18 +38,18 @@
       "use": "@vercel/static"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/",
-      "dest": "/index.html"
+      "source": "/",
+      "destination": "/index.html"
     },
     {
-      "src": "/game",
-      "dest": "/game.html"
+      "source": "/game",
+      "destination": "/game.html"
     },
     {
-      "src": "/multiplayer",
-      "dest": "/multiplayer-bomberman.html"
+      "source": "/multiplayer",
+      "destination": "/multiplayer-bomberman.html"
     }
   ],
   "headers": [
