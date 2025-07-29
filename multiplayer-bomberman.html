@@ -197,7 +197,7 @@
         // Game state
         let sprites = {};
         let spritesLoaded = 0;
-        const totalSprites = 13;
+        const totalSprites = 14;
         
         // Load all sprites - keeping original paths and structure
         function loadSprites() {
@@ -214,7 +214,8 @@
                 { name: 'explosion', path: 'sprites/explosion.png' },
                 { name: 'powerup-bomb', path: 'sprites/powerup-bomb.png' },
                 { name: 'powerup-fire', path: 'sprites/powerup-fire.png' },
-                { name: 'powerup-speed', path: 'sprites/powerup-speed.png' }
+                { name: 'powerup-speed', path: 'sprites/powerup-speed.png' },
+                { name: 'monster', path: 'images/mouch.png' }
             ];
             
             spriteList.forEach(sprite => {
@@ -580,6 +581,13 @@
                     for (const explosion of this.explosions) {
                         if (explosion && explosion.update) {
                             explosion.update();
+                        }
+                    }
+                    
+                    // Update monsters
+                    for (const monster of this.monsters) {
+                        if (monster && monster.update) {
+                            monster.update();
                         }
                     }
                     
@@ -1546,6 +1554,12 @@
                 this.moveSpeed = MONSTER_MOVE_SPEED;
                 this.isAlive = true;
                 
+                // Floating animation properties
+                this.floatTime = 0;
+                this.floatAmplitude = 8; // How much the monster bobs up and down
+                this.floatSpeed = 0.004; // Speed of the floating motion (slower)
+                this.baseY = position.y; // Store the base Y position for floating
+                
                 // Add to game monsters
                 this.game.monsters.add(this);
                 
@@ -1628,6 +1642,9 @@
                 this.pos.x += moveX;
                 this.pos.y += moveY;
                 
+                // Update base Y position for floating
+                this.baseY = this.pos.y;
+                
                 this.lastMoveTime = now;
                 
                 // Check if monster reached the player
@@ -1653,6 +1670,18 @@
                     // Continue moving
                     this.future(50).moveTowardsTarget();
                 }
+            }
+            
+            update() {
+                if (!this.isAlive) return;
+                
+                // Update floating animation
+                this.floatTime += this.floatSpeed;
+                const floatOffset = Math.sin(this.floatTime) * this.floatAmplitude;
+                this.pos.y = this.baseY + floatOffset;
+                
+                // Continue updating
+                this.future(50).update();
             }
             
             destroy() {
@@ -2347,24 +2376,55 @@
                         continue;
                     }
                     
-                    // Render monster as a simple red square
-                    ctx.fillStyle = '#ff0000';
-                    ctx.fillRect(
-                        monster.pos.x + offsetX + 2, 
-                        monster.pos.y + offsetY + 2, 
-                        TILE_SIZE - 4, 
-                        TILE_SIZE - 4
-                    );
-                    
-                    // Add monster border
-                    ctx.strokeStyle = '#800000';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(
-                        monster.pos.x + offsetX + 2, 
-                        monster.pos.y + offsetY + 2, 
-                        TILE_SIZE - 4, 
-                        TILE_SIZE - 4
-                    );
+                    // Render monster using the mouch.png image
+                    if (sprites.monster) {
+                        // Calculate aspect ratio to maintain original proportions
+                        const aspectRatio = sprites.monster.width / sprites.monster.height;
+                        const baseSize = TILE_SIZE * 2.5;
+                        
+                        // Use the larger dimension to fit the base size
+                        let monsterWidth, monsterHeight;
+                        if (aspectRatio > 1) {
+                            // Image is wider than tall
+                            monsterWidth = baseSize;
+                            monsterHeight = baseSize / aspectRatio;
+                        } else {
+                            // Image is taller than wide
+                            monsterWidth = baseSize * aspectRatio;
+                            monsterHeight = baseSize;
+                        }
+                        
+                        // Center the monster on its tile
+                        const monsterOffsetX = (monsterWidth - TILE_SIZE) / 2;
+                        const monsterOffsetY = (monsterHeight - TILE_SIZE) / 2;
+                        
+                        ctx.drawImage(
+                            sprites.monster,
+                            monster.pos.x + offsetX - monsterOffsetX, 
+                            monster.pos.y + offsetY - monsterOffsetY, 
+                            monsterWidth, 
+                            monsterHeight
+                        );
+                    } else {
+                        // Fallback to red square if image fails to load
+                        ctx.fillStyle = '#ff0000';
+                        ctx.fillRect(
+                            monster.pos.x + offsetX + 2, 
+                            monster.pos.y + offsetY + 2, 
+                            TILE_SIZE - 4, 
+                            TILE_SIZE - 4
+                        );
+                        
+                        // Add monster border
+                        ctx.strokeStyle = '#800000';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(
+                            monster.pos.x + offsetX + 2, 
+                            monster.pos.y + offsetY + 2, 
+                            TILE_SIZE - 4, 
+                            TILE_SIZE - 4
+                        );
+                    }
                     
                     console.log(`Rendering monster at (${monster.pos.x}, ${monster.pos.y}) -> screen (${screenX}, ${screenY})`);
                 }
