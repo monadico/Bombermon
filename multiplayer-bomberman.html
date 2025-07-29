@@ -218,6 +218,8 @@
         const MOVE_SPEED = 130;
         const BOMB_TIMER = 3000; // 3 seconds in milliseconds
         const EXPLOSION_DURATION = 1000; // 1 second
+        const MONSTER_SPAWN_DELAY = 5000; // 5 seconds after game starts
+        const MONSTER_MOVE_SPEED = 650; // Much slower for better gameplay
         
         // Canvas setup
         const canvas = document.getElementById('gameCanvas');
@@ -392,6 +394,7 @@
                 this.bombs = new Set();
                 this.explosions = new Set();
                 this.powerUps = new Set();
+                this.monsters = new Set();
                 this.gameStarted = false;
                 this.gameOver = false;
                 this.winner = null;
@@ -451,8 +454,13 @@
                 }
                 
                 if (this.players.size >= 2 && !this.gameStarted) {
+                    console.log('Game starting! Players:', this.players.size);
                     this.gameStarted = true;
                     this.publish(this.sessionId, "game-started", {});
+                    
+                    // Schedule monster spawn
+                    console.log(`Scheduling monster spawn in ${MONSTER_SPAWN_DELAY}ms`);
+                    this.future(MONSTER_SPAWN_DELAY).spawnMonster();
                 }
                 
                 this.updatePlayerList();
@@ -486,6 +494,60 @@
                 
                 // Debug: Log current state
                 console.log(`Game state: ${this.destructibleBlocks.size} destructible blocks, ${this.powerUps.size} power-ups`);
+            }
+            
+            spawnMonster() {
+                console.log('spawnMonster called!');
+                if (this.gameOver) {
+                    console.log('Game over, not spawning monster');
+                    return;
+                }
+                
+                // Choose random side (0=top, 1=right, 2=bottom, 3=left)
+                const side = Math.floor(Math.random() * 4);
+                let spawnPosition;
+                
+                switch(side) {
+                    case 0: // Top side
+                        spawnPosition = {
+                            x: Math.floor(Math.random() * 26 + 2) * TILE_SIZE,
+                            y: -TILE_SIZE // Outside the map
+                        };
+                        break;
+                    case 1: // Right side
+                        spawnPosition = {
+                            x: 28 * TILE_SIZE, // Outside the map
+                            y: Math.floor(Math.random() * 12 + 2) * TILE_SIZE
+                        };
+                        break;
+                    case 2: // Bottom side
+                        spawnPosition = {
+                            x: Math.floor(Math.random() * 26 + 2) * TILE_SIZE,
+                            y: 14 * TILE_SIZE // Outside the map
+                        };
+                        break;
+                    case 3: // Left side
+                        spawnPosition = {
+                            x: -TILE_SIZE, // Outside the map
+                            y: Math.floor(Math.random() * 12 + 2) * TILE_SIZE
+                        };
+                        break;
+                }
+                
+                // Create monster
+                console.log(`Creating monster at (${spawnPosition.x}, ${spawnPosition.y})`);
+                MonsterModel.create({
+                    position: spawnPosition
+                });
+                
+                console.log(`Monster spawned on side ${side} at (${spawnPosition.x}, ${spawnPosition.y})`);
+                console.log(`Total monsters: ${this.monsters.size}`);
+                
+                // Publish monster spawn event
+                this.publish(this.sessionId, "monster-spawned", {
+                    position: spawnPosition,
+                    side: side
+                });
             }
             
             restartGame() {
@@ -1487,6 +1549,129 @@
         }
         PowerUpModel.register("PowerUpModel");
         
+        class MonsterModel extends Multisynq.Model {
+            init({ position }) {
+                console.log('MonsterModel.init called');
+                this.pos = position;
+                this.targetPlayer = null;
+                this.lastMoveTime = 0;
+                this.moveSpeed = MONSTER_MOVE_SPEED;
+                this.isAlive = true;
+                
+                // Add to game monsters
+                this.game.monsters.add(this);
+                
+                console.log(`Monster spawned at (${position.x}, ${position.y})`);
+                console.log(`Monsters in game: ${this.game.monsters.size}`);
+                
+                // Start movement
+                this.findTargetAndMove();
+            }
+            
+            get game() {
+                return this.wellKnownModel("modelRoot");
+            }
+            
+            findTargetAndMove() {
+                if (!this.isAlive) return;
+                
+                // Find closest player
+                let closestPlayer = null;
+                let closestDistance = Infinity;
+                
+                for (const player of this.game.players.values()) {
+                    if (!player.isAlive) continue;
+                    
+                    const distance = Math.sqrt(
+                        Math.pow(this.pos.x - player.pos.x, 2) + 
+                        Math.pow(this.pos.y - player.pos.y, 2)
+                    );
+                    
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        closestPlayer = player;
+                    }
+                }
+                
+                this.targetPlayer = closestPlayer;
+                
+                if (this.targetPlayer) {
+                    // Move towards target
+                    this.moveTowardsTarget();
+                } else {
+                    // No players alive, wait and try again
+                    this.future(1000).findTargetAndMove();
+                }
+            }
+            
+            moveTowardsTarget() {
+                if (!this.isAlive || !this.targetPlayer || !this.targetPlayer.isAlive) {
+                    this.future(500).findTargetAndMove();
+                    return;
+                }
+                
+                const now = this.now();
+                if (now - this.lastMoveTime < this.moveSpeed) {
+                    this.future(50).moveTowardsTarget();
+                    return;
+                }
+                
+                // Calculate direction to target
+                const dx = this.targetPlayer.pos.x - this.pos.x;
+                const dy = this.targetPlayer.pos.y - this.pos.y;
+                
+                // Move in the direction with the largest difference
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    // Move horizontally
+                    if (dx > 0) {
+                        this.pos.x += TILE_SIZE;
+                    } else {
+                        this.pos.x -= TILE_SIZE;
+                    }
+                } else {
+                    // Move vertically
+                    if (dy > 0) {
+                        this.pos.y += TILE_SIZE;
+                    } else {
+                        this.pos.y -= TILE_SIZE;
+                    }
+                }
+                
+                this.lastMoveTime = now;
+                
+                // Check if monster reached the player
+                const distance = Math.sqrt(
+                    Math.pow(this.pos.x - this.targetPlayer.pos.x, 2) + 
+                    Math.pow(this.pos.y - this.targetPlayer.pos.y, 2)
+                );
+                
+                if (distance < TILE_SIZE) {
+                    // Monster caught the player!
+                    console.log(`Monster caught player ${this.targetPlayer.playerId}!`);
+                    this.targetPlayer.takeDamage();
+                    
+                    // Publish monster kill event
+                    this.game.publish(this.game.sessionId, "monster-killed-player", {
+                        playerId: this.targetPlayer.playerId,
+                        monsterPosition: { x: this.pos.x, y: this.pos.y }
+                    });
+                    
+                    // Find new target
+                    this.future(1000).findTargetAndMove();
+                } else {
+                    // Continue moving
+                    this.future(50).moveTowardsTarget();
+                }
+            }
+            
+            destroy() {
+                this.isAlive = false;
+                this.game.monsters.delete(this);
+                super.destroy();
+            }
+        }
+        MonsterModel.register("MonsterModel");
+        
         // View class for rendering
         class GameView extends Multisynq.View {
             constructor(model) {
@@ -1512,6 +1697,8 @@
                 this.subscribe(this.viewId, "bomb-auto-thrown", this.onBombAutoThrown);
                 this.subscribe(this.viewId, "shield-blocked", this.onShieldBlocked);
                 this.subscribe(this.viewId, "remote-bomb-limit-reached", this.onRemoteBombLimitReached);
+                this.subscribe(this.sessionId, "monster-spawned", this.onMonsterSpawned);
+                this.subscribe(this.sessionId, "monster-killed-player", this.onMonsterKilledPlayer);
                 
                 this.render();
             }
@@ -1767,6 +1954,22 @@
                 }, 2000);
             }
             
+            onMonsterSpawned(data) {
+                this.gameStatusEl.textContent = '👹 Monster spawned! Run!';
+                // Reset status after a short delay
+                setTimeout(() => {
+                    this.gameStatusEl.textContent = 'Game Started! Fight!';
+                }, 3000);
+            }
+            
+            onMonsterKilledPlayer(data) {
+                this.gameStatusEl.textContent = `👹 Monster killed player ${data.playerId + 1}!`;
+                // Reset status after a short delay
+                setTimeout(() => {
+                    this.gameStatusEl.textContent = 'Game Started! Fight!';
+                }, 3000);
+            }
+            
             onPowerUpCollectedGlobal(data) {
                 // Could add visual feedback here like a popup or animation
             }
@@ -1903,6 +2106,9 @@
                 
                 // Render players
                 this.renderPlayers();
+                
+                // Render monsters
+                this.renderMonsters();
             }
             
             renderMap() {
@@ -2105,6 +2311,43 @@
                         ctx.fillStyle = 'rgba(255, 165, 0, 0.8)';
                         ctx.fillRect(explosion.pos.x + offsetX, explosion.pos.y + offsetY, TILE_SIZE, TILE_SIZE);
                     }
+                }
+            }
+            
+            renderMonsters() {
+                // Center the smaller map on the screen
+                const mapWidth = LEVEL_MAP[0].length * TILE_SIZE;
+                const mapHeight = LEVEL_MAP.length * TILE_SIZE;
+                const offsetX = (canvas.width - mapWidth) / 2;
+                const offsetY = (canvas.height - mapHeight) / 2;
+                
+                console.log(`Rendering ${this.model.monsters.size} monsters`);
+                for (const monster of this.model.monsters) {
+                    if (!monster.isAlive) {
+                        console.log('Skipping dead monster');
+                        continue;
+                    }
+                    
+                    // Render monster as a simple red square
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(
+                        monster.pos.x + offsetX + 2, 
+                        monster.pos.y + offsetY + 2, 
+                        TILE_SIZE - 4, 
+                        TILE_SIZE - 4
+                    );
+                    
+                    // Add monster border
+                    ctx.strokeStyle = '#800000';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(
+                        monster.pos.x + offsetX + 2, 
+                        monster.pos.y + offsetY + 2, 
+                        TILE_SIZE - 4, 
+                        TILE_SIZE - 4
+                    );
+                    
+                    console.log(`Rendering monster at (${monster.pos.x}, ${monster.pos.y})`);
                 }
             }
             
