@@ -279,6 +279,10 @@
         let isReady = false;
         let playerViewId = null;
         
+        // Make variables globally accessible for the view
+        window.playerName = playerName;
+        window.isHost = isHost;
+        
         // Generate a session ID
         function generateSessionId() {
             const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -314,6 +318,7 @@
             }
             
             playerName = name;
+            window.playerName = name;
             currentSessionId = generateSessionId();
             
             try {
@@ -340,6 +345,7 @@
                 
                 // Set host flag and store viewId
                 isHost = true;
+                window.isHost = true;
                 playerViewId = currentSession.view?.id || 'V1'; // Use view ID as fallback
                 
                 // Show session info
@@ -369,6 +375,7 @@
             }
             
             playerName = name;
+            window.playerName = name;
             currentSessionId = sessionId;
             
             try {
@@ -395,6 +402,7 @@
                 
                 // Set host flag and store viewId
                 isHost = false;
+                window.isHost = false;
                 playerViewId = currentSession.view?.id || 'V1'; // Use view ID as fallback
                 
                 // Show session info
@@ -445,6 +453,8 @@
         function startGame() {
             if (!currentSession || !isHost) return;
             
+            console.log('Starting game...');
+            
             // Store session info in localStorage for the game
             localStorage.setItem('bomberman_session', JSON.stringify({
                 sessionId: currentSessionId,
@@ -452,13 +462,13 @@
                 isHost: isHost
             }));
             
-            // Publish start game event
-            if (currentSession.model) {
-                currentSession.model.publish(currentSession.sessionId, "start-game", {
-                    startedBy: currentSession.viewId || currentSession.view?.viewId
+            // Publish start game event using View-to-Model communication
+            if (currentSession.view) {
+                currentSession.view.publish("lobby", "start-game", {
+                    startedBy: playerName
                 });
             } else {
-                console.error('No model available for publishing start game');
+                console.error('No view available for publishing start game');
             }
             
             // Redirect to the game
@@ -533,6 +543,7 @@
                 this.subscribe(this.sessionId, "view-exit", this.playerExited);
                 this.subscribe(this.sessionId, "start-game-request", this.handleStartGameRequest);
                 this.subscribe("lobby", "player-ready", this.handlePlayerReady);
+                this.subscribe("lobby", "start-game", this.handleStartGame);
                 
                 console.log('Lobby Model initialized');
             }
@@ -634,6 +645,17 @@
                 }
             }
             
+            handleStartGame(data) {
+                console.log('Game starting!', data);
+                this.gameStarted = true;
+                
+                // Publish game start event to all views
+                this.publish(this.sessionId, "game-starting", {
+                    sessionId: this._sessionId,
+                    startedBy: data.startedBy
+                });
+            }
+            
 
         }
         LobbyModel.register("LobbyModel");
@@ -648,6 +670,7 @@
             setupSubscriptions() {
                 this.subscribe(this.sessionId, "player-list-updated", this.onPlayerListUpdated);
                 this.subscribe(this.sessionId, "start-game", this.onGameStarting);
+                this.subscribe(this.sessionId, "game-starting", this.onGameStarting);
             }
             
             onPlayerListUpdated(data) {
@@ -657,7 +680,16 @@
             
             onGameStarting(data) {
                 console.log('Game is starting!', data);
-                // This would be called when the game starts
+                
+                // Store session info in localStorage for the game
+                localStorage.setItem('bomberman_session', JSON.stringify({
+                    sessionId: data.sessionId,
+                    playerName: window.playerName,
+                    isHost: window.isHost
+                }));
+                
+                // Redirect to the game
+                window.location.href = `multiplayer-bomberman.html#${data.sessionId}`;
             }
         }
         
