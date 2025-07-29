@@ -256,7 +256,7 @@
 
         
         <div id="controls">
-            <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Hold Spacebar to throw bomb • R key for remote detonation (max 2 bombs) • Share this URL to play with friends!
+            <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Hold Spacebar to throw bomb • R key for remote detonation (max 2 bombs) • ESC to exit game • Share this URL to play with friends!
         </div>
     </div>
 
@@ -479,10 +479,15 @@
                 // Subscribe to events
                 this.subscribe(this.sessionId, "view-join", this.playerJoined);
                 this.subscribe(this.sessionId, "view-exit", this.playerExited);
-                this.subscribe(this.sessionId, "restart-game", this.restartGame);
+                this.subscribe(this.sessionId, "restart-game", this.handleRestartGame);
                 
                 // Start main loop at 20fps for better performance
                 this.mainLoop();
+            }
+            
+            handleRestartGame(data) {
+                console.log("Restart requested by:", data.by || "unknown");
+                this.restartGame();
             }
             
             playerJoined(viewInfo) {
@@ -629,11 +634,21 @@
             }
             
             restartGame() {
-                console.log('Restarting game - complete reset');
+                // Prevent race conditions by locking the restart flow
+                if (this.restartInProgress) {
+                    console.log('Restart already in progress, skipping...');
+                    return;
+                }
+                this.restartInProgress = true;
                 
+                console.log('=== COMPLETE GAME RESTART ===');
+                
+                // Reset all game state
                 this.gameOver = false;
                 this.gameStarted = false;
                 this.winner = null;
+                
+                // Clear all entities
                 this.bombs.clear();
                 this.explosions.clear();
                 this.powerUps.clear();
@@ -649,7 +664,9 @@
                     });
                 });
                 
-                // Reset players with full lives and all stats
+                console.log(`Restored ${this.destructibleBlocks.size} destructible blocks`);
+                
+                // Reset players with full lives and all stats - snapshot-safe
                 const spawnPositions = [
                     { x: TILE_SIZE * 2, y: TILE_SIZE * 2 },
                     { x: TILE_SIZE * 25, y: TILE_SIZE * 2 },
@@ -657,18 +674,25 @@
                     { x: TILE_SIZE * 25, y: TILE_SIZE * 11 }
                 ];
                 
-                let playerIndex = 0;
-                for (const player of this.players.values()) {
-                    player.reset(spawnPositions[playerIndex % 4]);
-                    playerIndex++;
+                try {
+                    let playerIndex = 0;
+                    for (const player of this.players.values()) {
+                        console.log(`Resetting player ${player.playerId} to position ${playerIndex}`);
+                        player.reset(spawnPositions[playerIndex % 4]);
+                        playerIndex++;
+                    }
+                } catch (err) {
+                    console.warn('Error resetting players during restart:', err);
                 }
                 
                 // Start game if enough players
                 if (this.players.size >= 2) {
+                    console.log('Starting fresh game with', this.players.size, 'players');
                     this.gameStarted = true;
                     this.publish(this.sessionId, "game-started", {});
                     
                     // Schedule monster spawn after game starts
+                    console.log(`Scheduling monster spawn in ${MONSTER_SPAWN_DELAY}ms`);
                     this.future(MONSTER_SPAWN_DELAY).spawnMonster();
                 }
                 
@@ -677,7 +701,14 @@
                 // Publish game restarted event
                 this.publish(this.sessionId, "game-restarted", {});
                 
-                console.log('Game restarted - all blocks restored, players reset, monster spawn scheduled');
+                console.log('=== GAME RESTART COMPLETE ===');
+                console.log('- All blocks restored:', this.destructibleBlocks.size);
+                console.log('- Players reset:', this.players.size);
+                console.log('- Game started:', this.gameStarted);
+                console.log('- Monster spawn scheduled');
+                
+                // Final unlock
+                this.restartInProgress = false;
             }
             
             mainLoop() {
@@ -1911,6 +1942,13 @@
                 
                 this.pressedKeys.add(e.code);
                 
+                if (e.code === 'Escape') {
+                    e.preventDefault();
+                    // Show exit popup at any time
+                    this.showExitPopup();
+                    return;
+                }
+                
                 if (e.code === 'Space') {
                     e.preventDefault();
                     if (this.model.gameOver) {
@@ -2065,6 +2103,9 @@
                 const message = document.getElementById('gameOverMessage');
                 const playAgainBtn = document.querySelector('.btn-play-again');
                 
+                // Reset popup for game over scenario
+                document.querySelector('.game-over-title').textContent = '🎮 Game Over!';
+                
                 // Check if current player is the host using the new method
                 const isHost = this.isHost?.();
                 
@@ -2096,12 +2137,41 @@
             }
             
             onGameRestarted(data) {
+                console.log('=== VIEW: GAME RESTARTED ===');
+                
                 // Hide the game over popup
                 const popup = document.getElementById('gameOverPopup');
-                popup.classList.add('hidden');
+                if (popup) {
+                    popup.classList.add('hidden');
+                }
                 
-                // Update game status
-                this.gameStatusEl.textContent = 'Game Started! Fight!';
+                // Reset popup title back to game over
+                const title = document.querySelector('.game-over-title');
+                if (title) {
+                    title.textContent = '🎮 Game Over!';
+                }
+                
+                // Reset UI elements with fallback protection
+                if (this.gameStatusEl) {
+                    this.gameStatusEl.textContent = 'Game Started! Fight!';
+                }
+                
+                // Reset player UI with fallback protection
+                const localPlayer = this.model.players.get(this.viewId);
+                if (localPlayer) {
+                    if (this.livesEl) this.livesEl.textContent = localPlayer.lives;
+                    if (this.bombsEl) this.bombsEl.textContent = localPlayer.bombCount;
+                    if (this.fireEl) this.fireEl.textContent = localPlayer.firePower;
+                    
+                    // Reset ability UI
+                    this.updateAbilityUI();
+                }
+                
+                // Clear any stored data
+                window.exitData = null;
+                window.gameOverData = null;
+                
+                console.log('View restart complete - UI reset, popup hidden');
             }
             
             onPlayerListUpdated(data) {
@@ -2707,6 +2777,40 @@
                     this.lobbyRelay = null;
                 }
             }
+            
+            showExitPopup() {
+                console.log('=== ESC PRESSED - SHOWING EXIT POPUP ===');
+                
+                // Show the popup with exit message
+                const popup = document.getElementById('gameOverPopup');
+                const message = document.getElementById('gameOverMessage');
+                const playAgainBtn = document.querySelector('.btn-play-again');
+                const leaveBtn = document.querySelector('.btn-leave-lobby');
+                
+                // Update popup for exit scenario
+                document.querySelector('.game-over-title').textContent = '🎮 Exit Game';
+                message.textContent = 'Do you want to leave the game?';
+                
+                // Show/hide buttons based on host status
+                const isHost = this.isHost?.();
+                if (isHost) {
+                    playAgainBtn.textContent = "🔄 Restart Game (Host)";
+                    playAgainBtn.disabled = false;
+                    playAgainBtn.style.opacity = "1";
+                } else {
+                    playAgainBtn.textContent = "⏳ Wait for Host";
+                    playAgainBtn.disabled = true;
+                    playAgainBtn.style.opacity = "0.5";
+                }
+                
+                // Always show leave button
+                leaveBtn.textContent = "🏠 Leave to Lobby";
+                
+                popup.classList.remove('hidden');
+                
+                // Store exit data
+                window.exitData = { type: 'exit' };
+            }
         }
         
         // Background Music Management
@@ -2971,9 +3075,9 @@
         
         // Game Over Popup Functions
         function playAgain() {
-            console.log('Play Again clicked - checking if host');
+            console.log('=== PLAY AGAIN CLICKED ===');
             
-            // Check if current player is the host using the new method
+            // Check if current player is the host
             if (window.gameSession && window.gameSession.view) {
                 const isHost = window.gameSession.view.isHost?.();
                 
@@ -2998,8 +3102,22 @@
                 const popup = document.getElementById('gameOverPopup');
                 popup.classList.add('hidden');
                 
-                // Restart the game by publishing restart event
-                window.gameSession.view.publish(window.gameSession.sessionId, "restart-game", {});
+                // Check if this is an exit scenario or game over scenario
+                if (window.exitData && window.exitData.type === 'exit') {
+                    // Exit scenario - restart the game
+                    console.log('Publishing restart-game event for exit scenario');
+                    window.gameSession.view.publish(window.gameSession.sessionId, "restart-game", {
+                        by: window.gameSession.view.viewId
+                    });
+                    // Clear exit data
+                    window.exitData = null;
+                } else {
+                    // Game over scenario - restart the game
+                    console.log('Publishing restart-game event for game over scenario');
+                    window.gameSession.view.publish(window.gameSession.sessionId, "restart-game", {
+                        by: window.gameSession.view.viewId
+                    });
+                }
             }
         }
         
