@@ -76,34 +76,7 @@
             flex-wrap: wrap;
         }
         
-        #playerList {
-            position: absolute;
-            top: 60px;
-            right: 10px;
-            z-index: 100;
-            background: rgba(0,0,0,0.8);
-            padding: 10px;
-            border-radius: 5px;
-            min-width: 200px;
-            max-width: 250px;
-            backdrop-filter: blur(5px);
-        }
-        
-        .player-info {
-            margin: 5px 0;
-            padding: 5px;
-            border-radius: 3px;
-        }
-        
-        .player-local {
-            background: rgba(0, 255, 0, 0.2);
-            border-left: 3px solid #0f0;
-        }
-        
-        .player-remote {
-            background: rgba(255, 255, 0, 0.2);
-            border-left: 3px solid #ff0;
-        }
+
         
         #controls {
             position: absolute;
@@ -133,10 +106,7 @@
                 margin: 5px 0;
             }
             
-            #playerList {
-                min-width: 250px;
-                padding: 10px;
-            }
+
             
             h1 {
                 font-size: 20px;
@@ -194,16 +164,14 @@
                 </div>
             </div>
             <div>🎵 <button id="musicToggle" style="background: #00ff88; color: #000; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">Music: ON</button></div>
+            <div>🔄 <button id="restartButton" style="background: #ff4444; color: #fff; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">Restart Game</button></div>
         </div>
         
         <div id="gameContainer">
             <canvas id="gameCanvas" width="1280" height="720"></canvas>
         </div>
         
-        <div id="playerList">
-            <div style="font-weight: bold; margin-bottom: 10px;">Players:</div>
-            <div id="players">Waiting for players...</div>
-        </div>
+
         
         <div id="controls">
             <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Hold Spacebar to throw bomb • R key for remote detonation (max 2 bombs) • Share this URL to play with friends!
@@ -461,6 +429,8 @@
                     // Schedule monster spawn
                     console.log(`Scheduling monster spawn in ${MONSTER_SPAWN_DELAY}ms`);
                     this.future(MONSTER_SPAWN_DELAY).spawnMonster();
+                } else {
+                    console.log('Not enough players to start game. Current players:', this.players.size, 'gameStarted:', this.gameStarted);
                 }
                 
                 this.updatePlayerList();
@@ -498,6 +468,7 @@
             
             spawnMonster() {
                 console.log('spawnMonster called!');
+                console.log('Game state - gameOver:', this.gameOver, 'gameStarted:', this.gameStarted);
                 if (this.gameOver) {
                     console.log('Game over, not spawning monster');
                     return;
@@ -511,24 +482,24 @@
                     case 0: // Top side
                         spawnPosition = {
                             x: Math.floor(Math.random() * 26 + 2) * TILE_SIZE,
-                            y: -TILE_SIZE // Outside the map
+                            y: TILE_SIZE // Inside the map
                         };
                         break;
                     case 1: // Right side
                         spawnPosition = {
-                            x: 28 * TILE_SIZE, // Outside the map
+                            x: 27 * TILE_SIZE, // Inside the map
                             y: Math.floor(Math.random() * 12 + 2) * TILE_SIZE
                         };
                         break;
                     case 2: // Bottom side
                         spawnPosition = {
                             x: Math.floor(Math.random() * 26 + 2) * TILE_SIZE,
-                            y: 14 * TILE_SIZE // Outside the map
+                            y: 13 * TILE_SIZE // Inside the map
                         };
                         break;
                     case 3: // Left side
                         spawnPosition = {
-                            x: -TILE_SIZE, // Outside the map
+                            x: TILE_SIZE, // Inside the map
                             y: Math.floor(Math.random() * 12 + 2) * TILE_SIZE
                         };
                         break;
@@ -557,6 +528,7 @@
                 this.bombs.clear();
                 this.explosions.clear();
                 this.powerUps.clear();
+                this.monsters.clear();
                 
                 // Reset destructible blocks
                 this.destructibleBlocks.clear();
@@ -843,6 +815,8 @@
                 
                 const now = this.now();
                 if (now - this.lastBombTime < 500) return;
+                
+                console.log(`Player ${this.playerId} placing bomb at position (${this.pos.x}, ${this.pos.y})`);
                 
                 // If already holding a bomb, throw it
                 if (this.isHoldingBomb && this.heldBomb) {
@@ -1392,11 +1366,25 @@
                     // Damage players
                     for (const player of this.game.players.values()) {
                         const playerPos = player.getCurrentPosition();
-                        if (Math.abs(playerPos.x - pos.x) < TILE_SIZE/2 &&
-                            Math.abs(playerPos.y - pos.y) < TILE_SIZE/2) {
+                        const distanceX = Math.abs(playerPos.x - pos.x);
+                        const distanceY = Math.abs(playerPos.y - pos.y);
+                        console.log(`Checking explosion damage: explosion at (${pos.x}, ${pos.y}), player ${player.playerId} at (${playerPos.x}, ${playerPos.y}), distances: ${distanceX}, ${distanceY}`);
+                        
+                        if (distanceX < TILE_SIZE/2 && distanceY < TILE_SIZE/2) {
                             console.log(`Explosion at (${pos.x}, ${pos.y}) hitting player ${player.playerId} at (${playerPos.x}, ${playerPos.y})`);
                             console.log(`Player ${player.playerId} has shield: ${player.hasShield}`);
                             player.takeDamage();
+                        }
+                    }
+                    
+                    // Damage monsters
+                    for (const monster of this.game.monsters) {
+                        if (!monster.isAlive) continue;
+                        
+                        if (Math.abs(monster.pos.x - pos.x) < TILE_SIZE/2 &&
+                            Math.abs(monster.pos.y - pos.y) < TILE_SIZE/2) {
+                            console.log(`Explosion at (${pos.x}, ${pos.y}) destroying monster at (${monster.pos.x}, ${monster.pos.y})`);
+                            monster.destroy();
                         }
                     }
                 }
@@ -1620,22 +1608,25 @@
                 const dx = this.targetPlayer.pos.x - this.pos.x;
                 const dy = this.targetPlayer.pos.y - this.pos.y;
                 
-                // Move in the direction with the largest difference
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    // Move horizontally
-                    if (dx > 0) {
-                        this.pos.x += TILE_SIZE;
-                    } else {
-                        this.pos.x -= TILE_SIZE;
-                    }
-                } else {
-                    // Move vertically
-                    if (dy > 0) {
-                        this.pos.y += TILE_SIZE;
-                    } else {
-                        this.pos.y -= TILE_SIZE;
-                    }
+                // Move diagonally - always move both horizontally and vertically
+                let moveX = 0;
+                let moveY = 0;
+                
+                if (dx > 0) {
+                    moveX = TILE_SIZE;
+                } else if (dx < 0) {
+                    moveX = -TILE_SIZE;
                 }
+                
+                if (dy > 0) {
+                    moveY = TILE_SIZE;
+                } else if (dy < 0) {
+                    moveY = -TILE_SIZE;
+                }
+                
+                // Apply diagonal movement
+                this.pos.x += moveX;
+                this.pos.y += moveY;
                 
                 this.lastMoveTime = now;
                 
@@ -1667,6 +1658,12 @@
             destroy() {
                 this.isAlive = false;
                 this.game.monsters.delete(this);
+                
+                // Publish monster destroyed event
+                this.game.publish(this.game.sessionId, "monster-destroyed", {
+                    monsterPosition: { x: this.pos.x, y: this.pos.y }
+                });
+                
                 super.destroy();
             }
         }
@@ -1699,6 +1696,7 @@
                 this.subscribe(this.viewId, "remote-bomb-limit-reached", this.onRemoteBombLimitReached);
                 this.subscribe(this.sessionId, "monster-spawned", this.onMonsterSpawned);
                 this.subscribe(this.sessionId, "monster-killed-player", this.onMonsterKilledPlayer);
+                this.subscribe(this.sessionId, "monster-destroyed", this.onMonsterDestroyed);
                 
                 this.render();
             }
@@ -1968,6 +1966,15 @@
                 setTimeout(() => {
                     this.gameStatusEl.textContent = 'Game Started! Fight!';
                 }, 3000);
+            }
+            
+            onMonsterDestroyed(data) {
+                console.log('Monster destroyed at:', data.monsterPosition);
+                this.gameStatusEl.textContent = `💥 Monster destroyed!`;
+                // Reset status after a short delay
+                setTimeout(() => {
+                    this.gameStatusEl.textContent = 'Game Started! Fight!';
+                }, 2000);
             }
             
             onPowerUpCollectedGlobal(data) {
@@ -2321,10 +2328,22 @@
                 const offsetX = (canvas.width - mapWidth) / 2;
                 const offsetY = (canvas.height - mapHeight) / 2;
                 
-                console.log(`Rendering ${this.model.monsters.size} monsters`);
+                if (this.model.monsters.size > 0) {
+                    console.log(`Rendering ${this.model.monsters.size} monsters`);
+                }
                 for (const monster of this.model.monsters) {
                     if (!monster.isAlive) {
                         console.log('Skipping dead monster');
+                        continue;
+                    }
+                    
+                    // Check if monster is within visible bounds
+                    const screenX = monster.pos.x + offsetX;
+                    const screenY = monster.pos.y + offsetY;
+                    
+                    if (screenX < -TILE_SIZE || screenX > canvas.width + TILE_SIZE || 
+                        screenY < -TILE_SIZE || screenY > canvas.height + TILE_SIZE) {
+                        console.log(`Monster outside screen bounds: (${monster.pos.x}, ${monster.pos.y}) -> screen (${screenX}, ${screenY})`);
                         continue;
                     }
                     
@@ -2347,7 +2366,7 @@
                         TILE_SIZE - 4
                     );
                     
-                    console.log(`Rendering monster at (${monster.pos.x}, ${monster.pos.y})`);
+                    console.log(`Rendering monster at (${monster.pos.x}, ${monster.pos.y}) -> screen (${screenX}, ${screenY})`);
                 }
             }
             
@@ -2489,6 +2508,25 @@
                     isMusicPlaying = true;
                     musicToggle.textContent = 'Music: ON';
                     musicToggle.style.background = '#00ff88';
+                }
+            });
+            
+            // Restart button functionality
+            const restartButton = document.getElementById('restartButton');
+            restartButton.addEventListener('click', () => {
+                console.log('Restart button clicked');
+                if (window.gameSession && window.gameSession.model) {
+                    window.gameSession.model.restartGame();
+                    document.getElementById('gameStatus').textContent = 'Game Restarted!';
+                    setTimeout(() => {
+                        document.getElementById('gameStatus').textContent = 'Game Started! Fight!';
+                    }, 2000);
+                } else {
+                    console.log('No active game session to restart');
+                    document.getElementById('gameStatus').textContent = 'No active game to restart';
+                    setTimeout(() => {
+                        document.getElementById('gameStatus').textContent = 'Game Started! Fight!';
+                    }, 2000);
                 }
             });
             
