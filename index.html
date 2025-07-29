@@ -252,7 +252,7 @@
             
             <!-- Player List -->
             <div id="playerList" class="session-info">
-                <h3>Players</h3>
+                <h3>Players <span id="playerCount" style="font-size: 14px; color: #00ff88;">0/4 Players</span></h3>
                 <div id="playersList"></div>
             </div>
             
@@ -337,7 +337,16 @@
                         sessionId: currentSessionId,
                         isHost: true
                     },
-                    step: "auto"
+                    step: "auto",
+                    
+                    // ✅ Reject before model loads
+                    acceptView: ({ snapshot }) => {
+                        const playerCount = snapshot?.players ? snapshot.players.size || 0 : 0;
+                        if (playerCount >= 4) {
+                            throw new Error("Game is full! Maximum 4 players allowed.");
+                        }
+                        return true;
+                    }
                 });
                 
                 console.log('Lobby session created successfully:', currentSession.id);
@@ -394,7 +403,16 @@
                         sessionId: sessionId,
                         isHost: false
                     },
-                    step: "auto"
+                    step: "auto",
+                    
+                    // ✅ Reject before model loads
+                    acceptView: ({ snapshot }) => {
+                        const playerCount = snapshot?.players ? snapshot.players.size || 0 : 0;
+                        if (playerCount >= 4) {
+                            throw new Error("Game is full! Maximum 4 players allowed.");
+                        }
+                        return true;
+                    }
                 });
                 
                 console.log('Joined lobby session successfully:', currentSession.id);
@@ -412,7 +430,16 @@
                 
             } catch (error) {
                 console.error('Failed to join game session:', error);
-                updateStatus('Failed to join game session. Check the session ID.', 'error');
+                
+                // Check if it's a lobby full error
+                if (error.message && error.message.includes('full')) {
+                    updateStatus('Game is full! Maximum 4 players allowed.', 'error');
+                    setTimeout(() => {
+                        updateStatus('Ready to create or join a game', 'connecting');
+                    }, 3000);
+                } else {
+                    updateStatus('Failed to join game session. Check the session ID.', 'error');
+                }
             }
         }
         
@@ -537,6 +564,7 @@
                 this._sessionId = null; // Use private property instead of sessionId
                 this.gameStarted = false;
                 this.hostId = null;
+                this.maxPlayers = 4; // Maximum players per game
                 
                 // Subscribe to events
                 this.subscribe(this.sessionId, "view-join", this.playerJoined);
@@ -547,6 +575,8 @@
                 
                 console.log('Lobby Model initialized');
             }
+            
+
             
             playerJoined(viewInfo) {
                 const viewId = typeof viewInfo === 'string' ? viewInfo : (viewInfo.viewId || viewInfo);
@@ -620,7 +650,10 @@
                     players: playerData,
                     hostId: this.hostId,
                     sessionId: this._sessionId,
-                    allReady: allReady
+                    allReady: allReady,
+                    playerCount: this.players.size,
+                    maxPlayers: this.maxPlayers,
+                    isFull: this.players.size >= this.maxPlayers
                 });
             }
             
@@ -691,6 +724,8 @@
                 // Redirect to the game
                 window.location.href = `multiplayer-bomberman.html#${data.sessionId}`;
             }
+            
+
         }
         
         // Register the view class
@@ -721,6 +756,21 @@
             if (!playersListEl) {
                 console.error('playersList element not found');
                 return;
+            }
+            
+            // Update player count display
+            const playerCountEl = document.getElementById('playerCount');
+            if (playerCountEl) {
+                playerCountEl.textContent = `${data.playerCount || 0}/${data.maxPlayers || 4} Players`;
+                
+                // Add visual indicator if lobby is full
+                if (data.isFull) {
+                    playerCountEl.style.color = '#ff4444';
+                    playerCountEl.style.fontWeight = 'bold';
+                } else {
+                    playerCountEl.style.color = '#00ff88';
+                    playerCountEl.style.fontWeight = 'normal';
+                }
             }
             
             // Clear current list
