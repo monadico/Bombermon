@@ -119,6 +119,88 @@
                 font-size: 12px;
             }
         }
+        
+        /* Game Over Popup Styles */
+        .game-over-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+        
+        .game-over-content {
+            background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+            border: 3px solid #00ff88;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+        }
+        
+        .game-over-title {
+            font-size: 2.5rem;
+            color: #00ff88;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+        
+        .game-over-message {
+            font-size: 1.2rem;
+            color: #fff;
+            margin-bottom: 30px;
+        }
+        
+        .game-over-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .game-over-btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            min-width: 140px;
+        }
+        
+        .btn-play-again {
+            background: linear-gradient(45deg, #00ff88, #00cc6a);
+            color: #000;
+        }
+        
+        .btn-play-again:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.4);
+        }
+        
+        .btn-leave-lobby {
+            background: linear-gradient(45deg, #ff4444, #cc3333);
+            color: #fff;
+        }
+        
+        .btn-leave-lobby:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 68, 68, 0.4);
+        }
+        
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -175,6 +257,18 @@
         
         <div id="controls">
             <strong>Controls:</strong> Arrow Keys or WASD to move • Spacebar to place bomb • Hold Spacebar to throw bomb • R key for remote detonation (max 2 bombs) • Share this URL to play with friends!
+        </div>
+    </div>
+
+    <!-- Game Over Popup -->
+    <div id="gameOverPopup" class="game-over-popup hidden">
+        <div class="game-over-content">
+            <div class="game-over-title">🎮 Game Over!</div>
+            <div class="game-over-message" id="gameOverMessage">The game has ended!</div>
+            <div class="game-over-buttons">
+                <button class="game-over-btn btn-play-again" onclick="playAgain()">🔄 Play Again</button>
+                <button class="game-over-btn btn-leave-lobby" onclick="leaveToLobby()">🏠 Leave to Lobby</button>
+            </div>
         </div>
     </div>
 
@@ -367,6 +461,7 @@
                 this.gameStarted = false;
                 this.gameOver = false;
                 this.winner = null;
+                this.hostViewId = null; // Track the host viewId
                 
                 // Initialize destructible blocks
                 this.destructibleBlocks = new Set();
@@ -397,6 +492,12 @@
                 if (!viewId) {
                     console.error('Invalid viewInfo received:', viewInfo);
                     return;
+                }
+                
+                // Set hostViewId only once (first player becomes host)
+                if (!this.hostViewId) {
+                    this.hostViewId = viewId;
+                    console.log("Assigned hostViewId:", viewId);
                 }
                 
                 const playerId = this.players.size;
@@ -467,6 +568,11 @@
                 console.log(`Game state: ${this.destructibleBlocks.size} destructible blocks, ${this.powerUps.size} power-ups`);
             }
             
+            // Expose hostName for display
+            get hostName() {
+                return this.players?.get(this.hostViewId)?.name || "Host";
+            }
+            
             spawnMonster() {
                 console.log('spawnMonster called!');
                 console.log('Game state - gameOver:', this.gameOver, 'gameStarted:', this.gameStarted);
@@ -523,6 +629,8 @@
             }
             
             restartGame() {
+                console.log('Restarting game - complete reset');
+                
                 this.gameOver = false;
                 this.gameStarted = false;
                 this.winner = null;
@@ -531,7 +639,7 @@
                 this.powerUps.clear();
                 this.monsters.clear();
                 
-                // Reset destructible blocks
+                // Reset destructible blocks - restore ALL blocks
                 this.destructibleBlocks.clear();
                 LEVEL_MAP.forEach((row, y) => {
                     row.split('').forEach((cell, x) => {
@@ -541,7 +649,7 @@
                     });
                 });
                 
-                // Reset players
+                // Reset players with full lives and all stats
                 const spawnPositions = [
                     { x: TILE_SIZE * 2, y: TILE_SIZE * 2 },
                     { x: TILE_SIZE * 25, y: TILE_SIZE * 2 },
@@ -555,12 +663,21 @@
                     playerIndex++;
                 }
                 
+                // Start game if enough players
                 if (this.players.size >= 2) {
                     this.gameStarted = true;
                     this.publish(this.sessionId, "game-started", {});
+                    
+                    // Schedule monster spawn after game starts
+                    this.future(MONSTER_SPAWN_DELAY).spawnMonster();
                 }
                 
                 this.updatePlayerList();
+                
+                // Publish game restarted event
+                this.publish(this.sessionId, "game-restarted", {});
+                
+                console.log('Game restarted - all blocks restored, players reset, monster spawn scheduled');
             }
             
             mainLoop() {
@@ -1703,6 +1820,12 @@
             constructor(model) {
                 super(model);
                 this.model = model;
+                
+                // Dynamically compute host status
+                this.isHost = () => {
+                    return this.model?.hostViewId === this.viewId;
+                };
+                
                 this.setupInput();
                 this.setupUI();
                 
@@ -1714,6 +1837,7 @@
                 
                 this.subscribe(this.sessionId, "game-started", this.onGameStarted);
                 this.subscribe(this.sessionId, "game-over", this.onGameOver);
+                this.subscribe(this.sessionId, "game-restarted", this.onGameRestarted);
                 this.subscribe(this.sessionId, "player-list-updated", this.onPlayerListUpdated);
                 this.subscribe(this.sessionId, "powerup-collected-global", this.onPowerUpCollectedGlobal);
                 this.subscribe(this.viewId, "player-damaged", this.onPlayerDamaged);
@@ -1728,6 +1852,14 @@
                 this.subscribe(this.sessionId, "monster-destroyed", this.onMonsterDestroyed);
                 
                 this.render();
+            }
+            
+            // Debug helper for development
+            logViewIdentity() {
+                console.log("viewId:", this.viewId);
+                console.log("hostViewId (from model):", this.model.hostViewId);
+                console.log("isHost:", this.isHost());
+                console.log("Session host is:", this.model.hostName);
             }
             
             // Add view-side animation smoothing
@@ -1922,10 +2054,54 @@
             
             onGameStarted() {
                 this.gameStatusEl.textContent = 'Game Started! Fight!';
+                
+                // Debug: Log view identity when game starts
+                this.logViewIdentity();
             }
             
             onGameOver(data) {
-                this.gameStatusEl.textContent = `Game Over! Winner: ${data.winnerName} - Press SPACE to restart`;
+                // Show game over popup
+                const popup = document.getElementById('gameOverPopup');
+                const message = document.getElementById('gameOverMessage');
+                const playAgainBtn = document.querySelector('.btn-play-again');
+                
+                // Check if current player is the host using the new method
+                const isHost = this.isHost?.();
+                
+                console.log('Game Over - viewId:', this.viewId);
+                console.log('Game Over - hostViewId:', this.model.hostViewId);
+                console.log('Game Over - isHost:', isHost);
+                
+                if (data.winnerName && data.winnerName !== "Draw") {
+                    message.textContent = `Winner: ${data.winnerName}!`;
+                } else {
+                    message.textContent = "It's a draw!";
+                }
+                
+                // Update button text based on host status
+                if (isHost) {
+                    playAgainBtn.textContent = "🔄 Play Again (Host)";
+                    playAgainBtn.disabled = false;
+                    playAgainBtn.style.opacity = "1";
+                } else {
+                    playAgainBtn.textContent = "⏳ Wait for Host";
+                    playAgainBtn.disabled = true;
+                    playAgainBtn.style.opacity = "0.5";
+                }
+                
+                popup.classList.remove('hidden');
+                
+                // Store game over data for the buttons
+                window.gameOverData = data;
+            }
+            
+            onGameRestarted(data) {
+                // Hide the game over popup
+                const popup = document.getElementById('gameOverPopup');
+                popup.classList.add('hidden');
+                
+                // Update game status
+                this.gameStatusEl.textContent = 'Game Started! Fight!';
             }
             
             onPlayerListUpdated(data) {
@@ -2114,6 +2290,13 @@
             }
             
             render() {
+                // Debug: Log host assignment periodically (but not every frame)
+                if (this.frameCount === undefined) this.frameCount = 0;
+                this.frameCount++;
+                if (this.frameCount % 300 === 0) { // Log every 5 seconds at 60fps
+                    this.logViewIdentity();
+                }
+                
                 // Get current canvas display size for responsive scaling
                 const rect = canvas.getBoundingClientRect();
                 const scaleX = canvas.width / rect.width;
@@ -2653,6 +2836,7 @@
                     lobbySessionData = JSON.parse(storedSession);
                     sessionName = lobbySessionData.sessionId;
                     console.log('Using session from localStorage:', sessionName);
+                    console.log('Lobby session data:', lobbySessionData);
                     // Clear localStorage after reading
                     localStorage.removeItem('bomberman_session');
                 } catch (e) {
@@ -2674,6 +2858,11 @@
             }
             
             console.log('Joining session:', sessionName, 'with password:', sessionPassword);
+            console.log('Final lobbySessionData:', lobbySessionData);
+            console.log('Final viewData:', {
+                playerName: lobbySessionData?.playerName || 'Player',
+                sessionId: sessionName
+            });
             
             // Join MultiSynq session with consistent parameters
             Multisynq.Session.join({
@@ -2685,7 +2874,6 @@
                 password: sessionPassword,
                 viewData: {
                     playerName: lobbySessionData?.playerName || 'Player',
-                    isHost: lobbySessionData?.isHost || false,
                     sessionId: sessionName
                 },
                 step: "auto"
@@ -2696,6 +2884,12 @@
                 
                 // Store session reference for resize handler
                 window.gameSession = session;
+                
+                // Store viewData for host checking
+                window.gameSession.viewData = {
+                    playerName: lobbySessionData?.playerName || 'Player',
+                    sessionId: sessionName
+                };
                 
                 document.getElementById('gameStatus').textContent = `Connected! Session: ${sessionName}`;
                 
@@ -2774,6 +2968,51 @@
                 window.gameSession.view.render();
             }
         });
+        
+        // Game Over Popup Functions
+        function playAgain() {
+            console.log('Play Again clicked - checking if host');
+            
+            // Check if current player is the host using the new method
+            if (window.gameSession && window.gameSession.view) {
+                const isHost = window.gameSession.view.isHost?.();
+                
+                console.log('Play Again - viewId:', window.gameSession.view.viewId);
+                console.log('Play Again - hostViewId:', window.gameSession.model.hostViewId);
+                console.log('Play Again - isHost:', isHost);
+                
+                if (!isHost) {
+                    // Show message that only host can restart
+                    const message = document.getElementById('gameOverMessage');
+                    const originalText = message.textContent;
+                    message.textContent = "⏳ Only the host can restart the game!";
+                    
+                    // Reset message after 2 seconds
+                    setTimeout(() => {
+                        message.textContent = originalText;
+                    }, 2000);
+                    return;
+                }
+                
+                // Hide the popup
+                const popup = document.getElementById('gameOverPopup');
+                popup.classList.add('hidden');
+                
+                // Restart the game by publishing restart event
+                window.gameSession.view.publish(window.gameSession.sessionId, "restart-game", {});
+            }
+        }
+        
+        function leaveToLobby() {
+            console.log('Leave to Lobby clicked');
+            
+            // Hide the popup
+            const popup = document.getElementById('gameOverPopup');
+            popup.classList.add('hidden');
+            
+            // Navigate back to the lobby
+            window.location.href = 'index.html';
+        }
     </script>
 </body>
 </html> 
